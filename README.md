@@ -1,1 +1,1 @@
-# Tetris-Discord-Edition-Bot
+# Tetris Discord Edition Bot
