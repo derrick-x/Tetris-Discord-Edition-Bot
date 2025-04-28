@@ -103,6 +103,37 @@ public class Tetris {
         return null;
     }
 
+    /**
+     * Checks if a given piece, position, and rotation will collide with a
+     * filled tile in a given board.
+     * @param board The current board state, without the rotating piece.
+     * @param piece The piece to be rotated.
+     * @param position The position of the center of the piece.
+     * @param rotation The rotation state of the piece.
+     * @return True if the piece will collide with a filled tile in the board.
+     */
+    public static boolean collide(Piece[][] board, Piece piece, int[] position, int rotation) {
+        int[][] shape = getShape(piece);
+        for (int i = 0; i < 4; i++) {
+            if (shape[i][0] + position[0] < 0) {
+                return true;
+            }
+            if (shape[i][0] + position[0] > 9) {
+                return true;
+            }
+            if (shape[i][1] + position[1] < 0) {
+                return true;
+            }
+            if (shape[i][1] + position[1] > 19) {
+                return true;
+            }
+            if (board[shape[i][1] + position[1]][shape[i][0] + position[0]] != Piece.EMPTY) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     //Add static methods here as necessary
 
     int score;
@@ -113,9 +144,10 @@ public class Tetris {
     int queueIndex; //The index of the piece currently on the board
     Piece[][] board; //0 for empty, otherwise number that corresponds to the piece color
     Piece hold;
-    int xPos;
-    int yPos;
+    boolean canHold;
+    int[] position;
     int rotation; //0 for default, 1 for CW once, 2 for CW twice, 3 for CCW once
+    int inputCount; //Total number of inputs since last downward movement - 15 consecutive inputs results in instant lock
     ArrayList<Input> inputs; //The record of the input sequence
     //Add instance variables here as necessary
 
@@ -130,19 +162,61 @@ public class Tetris {
             Arrays.fill(board[i], Piece.EMPTY);
         }
         hold = Piece.EMPTY;
-        xPos = 4;
-        yPos = 1;
+        canHold = true;
+        position = new int[2];
+        position[0] = 4;
+        position[1] = 1;
+        inputCount = 0;
         inputs = new ArrayList<>();
     }
 
     /**
-     * Processes an input given in the parameter. If the input is invalid, do
+     * Processes an input given in the parameter. If the input is illegal, do
      * nothing.
      * @param input An integer representing the input as mapped in the Input
      * enum.
      */
-    public void input(int input) {
+    public void input(Input input) {
+        List<Input> validMoves = getValidMoves();
         //TODO
+        switch (input) {
+            case HARDDROP:
+            if (validMoves.contains(Input.HARDDROP)) {
+
+            }
+            break;
+            case SOFTDROP:
+            if (validMoves.contains(Input.SOFTDROP)) {
+                
+            }
+            break;
+            case LEFT:
+            if (validMoves.contains(Input.LEFT)) {
+                
+            }
+            break;
+            case RIGHT:
+            if (validMoves.contains(Input.RIGHT)) {
+                
+            }
+            break;
+            case CW:
+            if (validMoves.contains(Input.CW)) {
+                
+            }
+            break;
+            case CCW:
+            if (validMoves.contains(Input.CCW)) {
+                
+            }
+            break;
+            case HOLD:
+            if (validMoves.contains(Input.HOLD)) {
+                
+            }
+            break;
+            default:
+        }
     }
 
     /**
@@ -150,8 +224,37 @@ public class Tetris {
      * @return S list containing the numbers representing every valid input as
      * mapped in the Input enum.
      */
-    public List<Integer> getValidMoves() {
+    public List<Input> getValidMoves() {
+        List<Input> validMoves = new ArrayList<Input>(7);
+        validMoves.add(Input.HARDDROP); //Hard drop is always valid
         //TODO
+        //Check soft drop
+        int[] softdrop = {position[0], position[1] + 1};
+        if (!collide(board, queue.get(queueIndex), softdrop, rotation)) {
+            validMoves.add(Input.SOFTDROP);
+        }
+        //Check move left
+        int[] moveleft = {position[0] - 1, position[1]};
+        if (!collide(board, queue.get(queueIndex), moveleft, rotation)) {
+            validMoves.add(Input.LEFT);
+        }
+        //Check move right
+        int[] moveright = {position[0] + 1, position[1]};
+        if (!collide(board, queue.get(queueIndex), moveright, rotation)) {
+            validMoves.add(Input.RIGHT);
+        }
+        //Check rotate cw
+        if (srs(board, queue.get(queueIndex), position, rotation, true) != null) {
+            validMoves.add(Input.CW);
+        }
+        //Check rotate ccw
+        if (srs(board, queue.get(queueIndex), position, rotation, false) != null) {
+            validMoves.add(Input.CCW);
+        }
+        //Check hold
+        if (canHold) {
+            validMoves.add(Input.HOLD);
+        }
         return null;
     }
 
