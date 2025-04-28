@@ -47,7 +47,7 @@ public class Tetris {
     /**
      * Returns the color of a given piece.
      * @param piece The piece to get the color of.
-     * @return A haxadecimal integer representation of a 3-channel color.
+     * @return A hexadecimal integer representation of a 3-channel color.
      */
     public static int getColor(Piece piece) {
         return switch (piece) {
@@ -99,6 +99,7 @@ public class Tetris {
      * null if rotation is not possible with any kick.
      */
     public static int[] srs(Piece[][] board, Piece piece, int[] position, int rotation, boolean clockwise) {
+        //TODO
         return null;
     }
 
@@ -122,9 +123,12 @@ public class Tetris {
         score = 0;
         combo = -1;
         b2b = false;
-        queue = new ArrayList<>();
+        queue = new ArrayList<>(sevenBag());
         queueIndex = 0;
         board = new Piece[20][10];
+        for (int i = 0; i < 20; i++) {
+            Arrays.fill(board[i], Piece.EMPTY);
+        }
         hold = Piece.EMPTY;
         xPos = 4;
         yPos = 1;
@@ -132,13 +136,13 @@ public class Tetris {
     }
 
     /**
-     * Proceesses an input given in the parameter.
-     * If the input is invalid, do nothing.
+     * Processes an input given in the parameter. If the input is invalid, do
+     * nothing.
      * @param input An integer representing the input as mapped in the Input
      * enum.
      */
     public void input(int input) {
-
+        //TODO
     }
 
     /**
@@ -147,6 +151,7 @@ public class Tetris {
      * mapped in the Input enum.
      */
     public List<Integer> getValidMoves() {
+        //TODO
         return null;
     }
 
