@@ -142,13 +142,14 @@ public class Tetris {
     int lines; //Level can be calculated as lines / 10 + 1
     ArrayList<Piece> queue; //Contains ALL pieces that appeared and will appear in order
     int queueIndex; //The index of the piece currently on the board
-    Piece[][] board; //0 for empty, otherwise number that corresponds to the piece color
+    Piece[][] board; //0 for empty, otherwise number that corresponds to the piece color, board[y][x]
     Piece hold;
     boolean canHold;
-    int[] position;
+    int[] position; //position[0] = x, position[1] = y
     int rotation; //0 for default, 1 for CW once, 2 for CW twice, 3 for CCW once
     int inputCount; //Total number of inputs since last downward movement - 15 consecutive inputs results in instant lock
     ArrayList<Input> inputs; //The record of the input sequence
+    String message; //Any message to display, such as the type of line cleared
     //Add instance variables here as necessary
 
     public Tetris() {
@@ -168,6 +169,7 @@ public class Tetris {
         position[1] = 1;
         inputCount = 0;
         inputs = new ArrayList<>();
+        message = "";
     }
 
     /**
@@ -216,6 +218,47 @@ public class Tetris {
             }
             break;
             default:
+        }
+    }
+
+    /**
+     * Places the piece currently on the board, updating the necessary
+     * variables.
+     */
+    public void place() {
+        while (!collide(board, queue.get(queueIndex), position, rotation)) {
+            position[1]++;
+        }
+        position[1]--;
+        int[][] shape = getShape(queue.get(queueIndex));
+        for (int i = 0; i < 4; i++) {
+            board[shape[i][1] + position[1]][shape[i][0] + position[0]] = queue.get(queueIndex);
+        }
+        //TODO: detect t-spin before clearing lines
+        int cleared = 0;
+        for (int y = 19; y >= 0; y--) {
+            boolean filled = true;
+            for (int x = 0; x < 10; x++) {
+                if (board[y][x] == Piece.EMPTY) {
+                    filled = false;
+                    break;
+                }
+            }
+            if (filled) {
+                cleared++;
+                for (int y2 = y; y2 > 0; y2--) {
+                    System.arraycopy(board[y - 1], 0, board[y], 0, 10);
+                }
+                Arrays.fill(board[0], Piece.EMPTY);
+            }
+        }
+        //TODO
+        canHold = true;
+        queueIndex++;
+        if (queueIndex + 5 > queue.size());
+        List<Piece> newBag = sevenBag();
+        for (int i = 0; i < 7; i++) {
+            queue.add(newBag.get(i));
         }
     }
 
