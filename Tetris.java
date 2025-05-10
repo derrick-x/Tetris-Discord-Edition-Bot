@@ -150,6 +150,7 @@ public class Tetris {
     int inputCount; //Total number of inputs since last downward movement - 15 consecutive inputs results in instant lock
     ArrayList<Input> inputs; //The record of the input sequence
     String message; //Any message to display, such as the type of line cleared
+    boolean isMini;
     //Add instance variables here as necessary
 
     public Tetris() {
@@ -170,6 +171,7 @@ public class Tetris {
         inputCount = 0;
         inputs = new ArrayList<>();
         message = "";
+        isMini = false;
     }
 
     /**
@@ -235,6 +237,17 @@ public class Tetris {
             board[shape[i][1] + position[1]][shape[i][0] + position[0]] = queue.get(queueIndex);
         }
         //TODO: detect t-spin before clearing lines
+        boolean spin = false;
+        if (inputs.get(inputs.size() - 1) == Input.CW || inputs.get(inputs.size() - 1) == Input.CCW) {
+            int corners = 0;
+            corners += (position[0] == 0 || position[1] == 0 || board[position[1] - 1][position[0] - 1] != Piece.EMPTY) ? 1 : 0;
+            corners += (position[0] < 9 || position[1] == 0 || board[position[1] + 1][position[0] - 1] != Piece.EMPTY) ? 1 : 0;
+            corners += (position[0] == 0 || position[1] < 19 || board[position[1] - 1][position[0] + 1] != Piece.EMPTY) ? 1 : 0;
+            corners += (position[0] < 9 || position[1] < 19 || board[position[1] + 1][position[0] + 1] != Piece.EMPTY) ? 1 : 0;
+            if (corners > 2) {
+                spin = true;
+            }
+        }
         int cleared = 0;
         for (int y = 19; y >= 0; y--) {
             boolean filled = true;
