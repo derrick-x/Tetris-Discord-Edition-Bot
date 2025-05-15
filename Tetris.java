@@ -186,7 +186,7 @@ public class Tetris {
         switch (input) {
             case HARDDROP:
             if (validMoves.contains(Input.HARDDROP)) {
-
+                
             }
             break;
             case SOFTDROP:
@@ -277,7 +277,7 @@ public class Tetris {
 
     /**
      * Returns all the possible moves in the current state.
-     * @return S list containing the numbers representing every valid input as
+     * @return A list containing the numbers representing every valid input as
      * mapped in the Input enum.
      */
     public List<Input> getValidMoves() {
@@ -312,6 +312,17 @@ public class Tetris {
             validMoves.add(Input.HOLD);
         }
         return null;
+    }
+
+    /**
+     * Returns the upcoming pieces in the queue.
+     * @param amount The amount of pieces to return in the queue.
+     * @return A list containing the specified number of upcoming pieces in the
+     * queue, if it does not exceed the amount of pieces added to the queue,
+     * otherwise it returns as many pieces as it can.
+     */
+    public List<Piece> getNext(int amount) {
+        return queue.subList(queueIndex, Math.min(queue.size(), queueIndex + amount));
     }
 
     //Add instance methods here as necessary
