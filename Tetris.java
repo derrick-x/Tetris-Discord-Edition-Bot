@@ -23,6 +23,19 @@ public class Tetris {
         {{-1, 0}, {0, 0}, {0, -1}, {1, 0}},
         {{-1, -1}, {0, -1}, {0, 0}, {1, 0}}
     };
+    static final int[][][] SRS = {
+        {{0, 0}, {-1, 0}, {-1, -1}, {0, 2}, {-1, 2}}, //0->1
+        {{0, 0}, {1, 0}, {1, 1}, {0, -2}, {1, -2}}, //1->2
+        {{0, 0}, {1, 0}, {1, -1}, {0, 2}, {1, 2}}, //2->3
+        {{0, 0}, {-1, 0}, {-1, 1}, {0, -2}, {-1, -2}}, //3->0
+        {{0, 0}, {1, 0}, {1, -1}, {0, 2}, {1, 2}}, //0->3
+        {{0, 0}, {1, 0}, {1, 1}, {0, -2}, {1, -2}},  //1->0
+        {{0, 0}, {-1, 0}, {-1, -1}, {0, 2}, {-1, 2}}, //2->1
+        {{0, 0}, {-1, 0}, {-1, 1}, {0, -2}, {-1, -2}} //3->2
+    };
+    static final int[][] I_SRS = {
+
+    };
     //Add static variables here as necessary
 
 
@@ -120,10 +133,26 @@ public class Tetris {
      * @param rotation The original rotation state of the piece.
      * @param clockwise True if the rotation is clockwise, false for
      * counterclockwise.
-     * @return The position of the center of the piece after rotation. Returns
-     * null if rotation is not possible with any kick.
+     * @return An array where the first two entries represent the position of
+     * the center of the piece after rotation. The third entry is 1 if the kick
+     * forces a full spin (level 3 or 4 kick), 0 otherwise. Returns null if
+     * rotation is not possible with any kick.
      */
     public static int[] srs(Piece[][] board, Piece piece, int[] position, int rotation, boolean clockwise) {
+        if (piece == Piece.O) {
+            int[] srs = {0, 0, 0};
+            return srs;
+        }
+        
+        for (int i = 0; i < 5; i++) {
+            if (piece == Piece.I) {
+                //Eventually we need to handle I tetromino logic separately
+            }
+            if (!collide(board, piece, position[0] + SRS[rotation + (clockwise ? 0 : 4)][i][0], position[1] + SRS[rotation + (clockwise ? 0 : 4)][i][1], rotation + (clockwise ? 1 : 3))) {
+                int[] srs = {SRS[rotation + (clockwise ? 0 : 4)][i][0], SRS[rotation + (clockwise ? 0 : 4)][i][1], i > 2 ? 1 : 0};
+                return srs;
+            }
+        }
         return null;
     }
 
@@ -137,7 +166,7 @@ public class Tetris {
      * @return True if the piece will collide with a filled tile in the board.
      */
     public static boolean collide(Piece[][] board, Piece piece, int[] pos, int rotation) {
-        int[][] shape = getShape(piece);
+        int[][] shape = rotate(getShape(piece), rotation % 4);
         for (int i = 0; i < 4; i++) {
             //Out of bounds checks
             if (shape[i][0] + pos[0] < 0) {
@@ -175,6 +204,34 @@ public class Tetris {
         return collide(board, piece, pos, rotation);
     }
 
+    /**
+     * Rotates an array of points (represented as arrays of length 2).
+     * @param original The original array of points.
+     * @param direction Direction of rotation: 1 = clockwise, 3 =
+     * counterclockwise.
+     * @return A copy of the array with the rotation applied.
+     */
+    static final int[][] rotate(int[][] original, int direction) {
+        int[][] rotated = new int[original.length][2];
+        for (int i = 0; i < original.length; i++) {
+            rotated[i][0] = original[i][0];
+            rotated[i][1] = original[i][1];
+        }
+        for (int i = 0; i < original.length; i++) {
+            if (direction == 1) {
+                int temp = rotated[i][0];
+                rotated[i][0] = rotated[i][1] * -1;
+                rotated[i][1] = temp;
+            }
+            else if (direction == -1) {
+                int temp = rotated[i][0];
+                rotated[i][0] = rotated[i][1];
+                rotated[i][1] = temp * -1;
+            }
+        }
+        return rotated;
+    }
+
     //Add static methods here as necessary
 
     int score;
@@ -191,7 +248,7 @@ public class Tetris {
     int inputCount; //Total number of inputs since last downward movement - 15 consecutive inputs results in instant lock
     ArrayList<Input> inputs; //The record of the input sequence
     String message; //Any message to display, such as the type of line cleared
-    boolean isSpin; //Whether the last successful move was a rotation
+    int spinLevel; //Whether the last successful move was a rotation
     int lowest; //Lowest y position ever reached, used for instant lock condition
     //Add instance variables here as necessary
 
@@ -214,7 +271,7 @@ public class Tetris {
         inputCount = 0;
         inputs = new ArrayList<>();
         message = "";
-        isSpin = false;
+        spinLevel = 0;
         lowest = 1;
     }
 
@@ -227,50 +284,60 @@ public class Tetris {
     public void input(Input input) {
         List<Input> validMoves = getValidMoves();
         switch (input) {
-            case HARDDROP:
-            if (validMoves.contains(Input.HARDDROP)) {
-                place();
-                inputs.add(Input.HARDDROP);
+            case HARDDROP -> {
+                if (validMoves.contains(Input.HARDDROP)) {
+                    place();
+                    inputs.add(Input.HARDDROP);
+                }
             }
-            break;
-            case SOFTDROP:
-            if (validMoves.contains(Input.SOFTDROP)) {
-                position[1]++;
-                lowest = Math.max(position[1], lowest);
-                score++;
-                inputs.add(Input.SOFTDROP);
+            case SOFTDROP -> {
+                if (validMoves.contains(Input.SOFTDROP)) {
+                    position[1]++;
+                    lowest = Math.max(position[1], lowest);
+                    spinLevel = 0;
+                    score++;
+                    inputs.add(Input.SOFTDROP);
+                }
             }
-            break;
-            case LEFT:
-            if (validMoves.contains(Input.LEFT)) {
-                position[0]--;
-                inputCount++;
-                inputs.add(Input.LEFT);
+            case LEFT -> {
+                if (validMoves.contains(Input.LEFT)) {
+                    position[0]--;
+                    inputCount++;
+                    spinLevel = 0;
+                    inputs.add(Input.LEFT);
+                }
             }
-            break;
-            case RIGHT:
-            if (validMoves.contains(Input.RIGHT)) {
-                position[0]++;
-                inputCount++;
-                inputs.add(Input.RIGHT);
+            case RIGHT -> {
+                if (validMoves.contains(Input.RIGHT)) {
+                    position[0]++;
+                    inputCount++;
+                    spinLevel = 0;
+                    inputs.add(Input.RIGHT);
+                }
             }
-            break;
-            case CW:
-            if (validMoves.contains(Input.CW)) {
-                
+            case CW -> {
+                if (validMoves.contains(Input.CW)) {
+                    position = srs(board, queue.get(queueIndex), position, rotation, true);
+                    rotation++;
+                    rotation = rotation % 4;
+                }
             }
-            break;
-            case CCW:
-            if (validMoves.contains(Input.CCW)) {
-                
+            case CCW -> {
+                if (validMoves.contains(Input.CCW)) {
+                    position = srs(board, queue.get(queueIndex), position, rotation, true);
+                    rotation += 3;
+                    rotation = rotation % 4;
+                }
             }
-            break;
-            case HOLD:
-            if (validMoves.contains(Input.HOLD)) {
-                
+            case HOLD -> {
+                if (validMoves.contains(Input.HOLD)) {
+                    
+                }
             }
-            break;
-            default:
+            default -> {}
+        }
+        if (inputCount > 15) {
+            place();
         }
     }
 
@@ -282,6 +349,7 @@ public class Tetris {
         //Move piece down until it collides
         while (!collide(board, queue.get(queueIndex), position, rotation)) {
             position[1]++;
+            spinLevel = 0;
             score += 2;
         }
         position[1]--;
@@ -292,15 +360,14 @@ public class Tetris {
             board[shape[i][1] + position[1]][shape[i][0] + position[0]] = queue.get(queueIndex);
         }
         //Check for any spins (incomplete)
-        int spin = 0;
-        if (isSpin) {
+        if (spinLevel > 0) {
             int corners = 0;
             corners += (position[0] == 0 || position[1] == 0 || board[position[1] - 1][position[0] - 1] != Piece.EMPTY) ? 1 : 0;
             corners += (position[0] < 9 || position[1] == 0 || board[position[1] + 1][position[0] - 1] != Piece.EMPTY) ? 1 : 0;
             corners += (position[0] == 0 || position[1] < 19 || board[position[1] - 1][position[0] + 1] != Piece.EMPTY) ? 1 : 0;
             corners += (position[0] < 9 || position[1] < 19 || board[position[1] + 1][position[0] + 1] != Piece.EMPTY) ? 1 : 0;
             if (corners > 2) {
-                spin = 1;
+                spinLevel = 2;
             }
         }
         //Detect and clear filled lines
@@ -333,7 +400,7 @@ public class Tetris {
         rotation = 0;
         canHold = true;
         inputCount = 0;
-        isSpin = false;
+        spinLevel = 0;
         lowest = 1;
     }
 
