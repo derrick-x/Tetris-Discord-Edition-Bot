@@ -60,25 +60,23 @@ public class Tetris {
      * @return A 2D integer array consisting of points representing the
      * locations of the tiles relative to the piece's center.
      */
-    static int[][] getShape(Piece piece) {
+    static int[][] getShape(Piece piece, int rotation) {
+        int[][] shape = null;
         switch (piece) {
-            case I:
-            return arrayCopy2D(SHAPES[0]);
-            case J:
-            return arrayCopy2D(SHAPES[1]);
-            case L:
-            return arrayCopy2D(SHAPES[2]);
-            case O:
-            return arrayCopy2D(SHAPES[3]);
-            case S:
-            return arrayCopy2D(SHAPES[4]);
-            case T:
-            return arrayCopy2D(SHAPES[5]);
-            case Z:
-            return arrayCopy2D(SHAPES[6]);
-            default: 
-            return null;
+            case I -> shape = arrayCopy2D(SHAPES[0]);
+            case J -> shape = arrayCopy2D(SHAPES[1]);
+            case L -> shape = arrayCopy2D(SHAPES[2]);
+            case O -> shape = arrayCopy2D(SHAPES[3]);
+            case S -> shape = arrayCopy2D(SHAPES[4]);
+            case T -> shape = arrayCopy2D(SHAPES[5]);
+            case Z -> shape = arrayCopy2D(SHAPES[6]);
+            default -> {}
         }
+        if (shape == null) { //This should never be true
+            return shape;
+        }
+        shape = rotate(shape, rotation);
+        return shape;
     }
 
     /**
@@ -90,7 +88,7 @@ public class Tetris {
         return switch (piece) {
             case I -> 0x00ffff;
             case J -> 0x0000ff;
-            case L -> 0x7fff00;
+            case L -> 0xff7f00;
             case O -> 0xffff00;
             case S -> 0x00ff00;
             case T -> 0x7f00ff;
@@ -166,7 +164,7 @@ public class Tetris {
      * @return True if the piece will collide with a filled tile in the board.
      */
     public static boolean collide(Piece[][] board, Piece piece, int[] pos, int rotation) {
-        int[][] shape = rotate(getShape(piece), rotation % 4);
+        int[][] shape = getShape(piece, rotation);
         for (int i = 0; i < 4; i++) {
             //Out of bounds checks
             if (shape[i][0] + pos[0] < 0) {
@@ -175,14 +173,11 @@ public class Tetris {
             if (shape[i][0] + pos[0] > 9) {
                 return true;
             }
-            if (shape[i][1] + pos[1] < 0) { //This check will eventually need to be removed as pieces can go over the top of the visible board
-                return true;
-            }
             if (shape[i][1] + pos[1] > 19) {
                 return true;
             }
             //Tile collision check
-            if (board[shape[i][1] + pos[1]][shape[i][0] + pos[0]] != Piece.EMPTY) {
+            if (shape[i][1] + pos[1] >= 0 && board[shape[i][1] + pos[1]][shape[i][0] + pos[0]] != Piece.EMPTY) {
                 return true;
             }
         }
@@ -218,15 +213,10 @@ public class Tetris {
             rotated[i][1] = original[i][1];
         }
         for (int i = 0; i < original.length; i++) {
-            if (direction == 1) {
+            for (int j = 0; j < direction; j++) {
                 int temp = rotated[i][0];
                 rotated[i][0] = rotated[i][1] * -1;
                 rotated[i][1] = temp;
-            }
-            else if (direction == -1) {
-                int temp = rotated[i][0];
-                rotated[i][0] = rotated[i][1];
-                rotated[i][1] = temp * -1;
             }
         }
         return rotated;
@@ -241,6 +231,7 @@ public class Tetris {
     ArrayList<Piece> queue; //Contains ALL pieces that appeared and will appear in order
     int queueIndex; //The index of the piece currently on the board
     Piece[][] board; //0 for empty, otherwise number that corresponds to the piece color, board[y][x]
+    List<Piece[]> overflow; //Tiles that go over the top of the board
     Piece hold;
     boolean canHold;
     int[] position; //position = {x, y}
@@ -262,6 +253,7 @@ public class Tetris {
         for (int i = 0; i < 20; i++) {
             Arrays.fill(board[i], Piece.EMPTY);
         }
+        overflow = new ArrayList<>();
         hold = Piece.EMPTY;
         canHold = true;
         position = new int[2];
@@ -317,21 +309,47 @@ public class Tetris {
             }
             case CW -> {
                 if (validMoves.contains(Input.CW)) {
-                    position = srs(board, queue.get(queueIndex), position, rotation, true);
+                    int[] kick = srs(board, queue.get(queueIndex), position, rotation, true);
+                    position[0] += kick[0];
+                    position[1] += kick[1];
+                    spinLevel = 1;
+                    if (kick[2] == 1) {
+                        spinLevel = 2;
+                    }
                     rotation++;
                     rotation = rotation % 4;
                 }
             }
             case CCW -> {
                 if (validMoves.contains(Input.CCW)) {
-                    position = srs(board, queue.get(queueIndex), position, rotation, true);
+                    int[] kick = srs(board, queue.get(queueIndex), position, rotation, false);
+                    position[0] += kick[0];
+                    position[1] += kick[1];
+                    spinLevel = 1;
+                    if (kick[2] == 1) {
+                        spinLevel = 2;
+                    }
                     rotation += 3;
                     rotation = rotation % 4;
                 }
             }
             case HOLD -> {
                 if (validMoves.contains(Input.HOLD)) {
-                    
+                    canHold = false;
+                    if (hold == Piece.EMPTY) {
+                        hold = queue.remove(queueIndex);
+                    }
+                    else {
+                        Piece temp = hold;
+                        hold = queue.get(queueIndex);
+                        queue.set(queueIndex, temp);
+                    }
+                    position[0] = 4;
+                    position[1] = 1;
+                    rotation = 0;
+                    inputCount = 0;
+                    spinLevel = 0;
+                    lowest = 1;
                 }
             }
             default -> {}
@@ -355,9 +373,19 @@ public class Tetris {
         position[1]--;
         score -= 2;
         //Fill tiles where the piece will be placed
-        int[][] shape = getShape(queue.get(queueIndex));
+        int[][] shape = getShape(queue.get(queueIndex), rotation);
         for (int i = 0; i < 4; i++) {
-            board[shape[i][1] + position[1]][shape[i][0] + position[0]] = queue.get(queueIndex);
+            if (shape[i][1] + position[1] < 0) {
+                while (overflow.size() < 0 - shape[i][1] - position[1]) {
+                    Piece[] emptyRow = new Piece[10];
+                    Arrays.fill(emptyRow, Piece.EMPTY);
+                    overflow.add(emptyRow);
+                }
+                overflow.get(-1 - shape[i][1] - position[1])[shape[i][0] + position[0]] = queue.get(queueIndex);
+            }
+            else {
+                board[shape[i][1] + position[1]][shape[i][0] + position[0]] = queue.get(queueIndex);
+            }
         }
         //Check for any spins (incomplete)
         if (spinLevel > 0) {
@@ -385,7 +413,13 @@ public class Tetris {
                 for (int y2 = y; y2 > 0; y2--) {
                     System.arraycopy(board[y2 - 1], 0, board[y2], 0, 10);
                 }
-                Arrays.fill(board[0], Piece.EMPTY);
+                if (!overflow.isEmpty()) {
+                    board[0] = Arrays.copyOf(overflow.remove(0), 10);
+                }
+                else {
+                    Arrays.fill(board[0], Piece.EMPTY);
+                }
+                y++;
             }
         }
         //TODO: Add score for clearing lines
@@ -462,7 +496,7 @@ public class Tetris {
         while (!collide(board, queue.get(queueIndex), shadow[0], shadow[1] + 1, rotation)) {
             shadow[1]++;
         }
-        int[][] shape = getShape(queue.get(queueIndex));
+        int[][] shape = getShape(queue.get(queueIndex), rotation);
         for (int i = 0; i < 4; i++) {
             shape[i][0] += shadow[0];
             shape[i][1] += shadow[1];
