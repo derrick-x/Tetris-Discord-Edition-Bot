@@ -93,5 +93,10 @@ public class Tester extends Canvas {
                 g.fillRect(shape[i][0] * 20 + 60, shape[i][1] * 20 + 100, 20, 20);
             }
         }
+        g.setColor(Color.WHITE);
+        g.drawString("Score: " + tetris.score, 60, 200);
+        g.drawString("Lines: " + tetris.lines, 60, 220);
+        g.drawString("Combo: " + tetris.combo, 60, 240);
+        g.drawString("Back-to-back: " + tetris.b2b, 60, 260);
     }
 }

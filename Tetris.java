@@ -33,11 +33,34 @@ public class Tetris {
         {{0, 0}, {-1, 0}, {-1, -1}, {0, 2}, {-1, 2}}, //2->1
         {{0, 0}, {-1, 0}, {-1, 1}, {0, -2}, {-1, -2}} //3->2
     };
-    static final int[][] I_SRS = {
 
+    /*
+    (+1, 0)	(-1, 0)	(+2, 0)	(-1,+1)	(+2,-2)
+    (0, +1)	(-1,+1)	(+2, 1)	(-1,-1)	(+2,+2)
+    (-1, 0)	(+1, 0)	(-2, 0)	(+1,-1)	(-2,+2)
+    (0, -1)	(+1,-1)	(-2,-1)	(+1,+1)	(-2,-2)
+    (0, +1)	(-1,+1)	(+2,+1)	(-1,-1)	(+2,+2)
+    (-1, 0)	(+1, 0)	(-2, 0)	(+1,-1)	(-2,+2)
+    (0, -1)	(+1,-1)	(-2,-1)	(+1,+1)	(-2,-2)
+    (+1, 0)	(-1, 0)	(+2, 0)	(-1,+1)	(+2,-2)
+     */
+    static final int[][][] I_SRS = {
+        {{1, 0}, {-1, 0}, {2, 0}, {-1, 1}, {2, -2}}, //0->1
+        {{0, 1}, {-1, 1}, {2, 1}, {-1, -1}, {2, 2}}, //1->2
+        {{-1, 0}, {1, 0}, {-2, 0}, {1, -1}, {-2, 2}}, //2->3
+        {{0, -1}, {1, -1}, {-2, -1}, {1, 1}, {-2, -2}}, //3->0
+        {{0, 1}, {-1, 1}, {2, 1}, {-1, -1}, {2, 2}}, //0->3
+        {{-1, 0}, {1, 0}, {-2, 0}, {1, -1}, {-2, 2}}, //1->0
+        {{0, -1}, {1, -1}, {-2, -1}, {1, 1}, {-2, -2}}, //2->1
+        {{1, 0}, {-1, 0}, {2, 0}, {-1, 1}, {2, -2}} //3->2
+    };
+    static final int[][][] SCORE_TABLE = { //Entries with -1 should never occur
+        {{0, 100, 300, 500, 800}, {0, -1, -1, -1, 1200}}, //normal, b2b normal
+        {{100, 200, 400, -1, -1}, {100, 300, 600, -1, -1}}, //mini spin, b2b mini spin
+        {{400, 800, 1200, 1600, -1}, {400, 1200, 1800, 2400, -1}}, //spin, b2b spin
+        {{-1, 900, 1500, 2300, 2800}, {-1, -1, -1, -1, 4400}} // all clear, b2b all clear
     };
     //Add static variables here as necessary
-
 
     /**
      * Returns a copy of the given array. (Mainly just to be a helper method
@@ -144,7 +167,10 @@ public class Tetris {
         
         for (int i = 0; i < 5; i++) {
             if (piece == Piece.I) {
-                //Eventually we need to handle I tetromino logic separately
+                if (!collide(board, piece, position[0] + I_SRS[rotation + (clockwise ? 0 : 4)][i][0], position[1] + I_SRS[rotation + (clockwise ? 0 : 4)][i][1], rotation + (clockwise ? 1 : 3))) {
+                    int[] srs = {I_SRS[rotation + (clockwise ? 0 : 4)][i][0], I_SRS[rotation + (clockwise ? 0 : 4)][i][1], i > 2 ? 1 : 0};
+                    return srs;
+                }
             }
             if (!collide(board, piece, position[0] + SRS[rotation + (clockwise ? 0 : 4)][i][0], position[1] + SRS[rotation + (clockwise ? 0 : 4)][i][1], rotation + (clockwise ? 1 : 3))) {
                 int[] srs = {SRS[rotation + (clockwise ? 0 : 4)][i][0], SRS[rotation + (clockwise ? 0 : 4)][i][1], i > 2 ? 1 : 0};
@@ -226,7 +252,7 @@ public class Tetris {
 
     int score;
     int combo;
-    boolean b2b; //True if previous clear was a b2b clear
+    int b2b; //True if previous clear was a b2b clear
     int lines; //Level can be calculated as lines / 10 + 1
     ArrayList<Piece> queue; //Contains ALL pieces that appeared and will appear in order
     int queueIndex; //The index of the piece currently on the board
@@ -246,7 +272,7 @@ public class Tetris {
     public Tetris() {
         score = 0;
         combo = -1;
-        b2b = false;
+        b2b = -1;
         queue = new ArrayList<>(sevenBag());
         queueIndex = 0;
         board = new Piece[20][10];
@@ -288,49 +314,58 @@ public class Tetris {
                     lowest = Math.max(position[1], lowest);
                     spinLevel = 0;
                     score++;
+                    inputCount = 0;
                     inputs.add(Input.SOFTDROP);
                 }
             }
             case LEFT -> {
                 if (validMoves.contains(Input.LEFT)) {
                     position[0]--;
-                    inputCount++;
                     spinLevel = 0;
+                    inputCount++;
                     inputs.add(Input.LEFT);
                 }
             }
             case RIGHT -> {
                 if (validMoves.contains(Input.RIGHT)) {
                     position[0]++;
-                    inputCount++;
                     spinLevel = 0;
+                    inputCount++;
                     inputs.add(Input.RIGHT);
                 }
             }
             case CW -> {
                 if (validMoves.contains(Input.CW)) {
-                    int[] kick = srs(board, queue.get(queueIndex), position, rotation, true);
-                    position[0] += kick[0];
-                    position[1] += kick[1];
-                    spinLevel = 1;
-                    if (kick[2] == 1) {
-                        spinLevel = 2;
+                    if (queue.get(queueIndex) != Piece.O) {
+                        int[] kick = srs(board, queue.get(queueIndex), position, rotation, true);
+                        position[0] += kick[0];
+                        position[1] += kick[1];
+                        spinLevel = 1;
+                        if (kick[2] == 1) {
+                            spinLevel = 2;
+                        }
+                        rotation++;
+                        rotation = rotation % 4;
                     }
-                    rotation++;
-                    rotation = rotation % 4;
+                    inputCount++;
+                    inputs.add(Input.CW);
                 }
             }
             case CCW -> {
                 if (validMoves.contains(Input.CCW)) {
-                    int[] kick = srs(board, queue.get(queueIndex), position, rotation, false);
-                    position[0] += kick[0];
-                    position[1] += kick[1];
-                    spinLevel = 1;
-                    if (kick[2] == 1) {
-                        spinLevel = 2;
+                    if (queue.get(queueIndex) != Piece.O) {
+                        int[] kick = srs(board, queue.get(queueIndex), position, rotation, false);
+                        position[0] += kick[0];
+                        position[1] += kick[1];
+                        spinLevel = 1;
+                        if (kick[2] == 1) {
+                            spinLevel = 2;
+                        }
+                        rotation += 3;
+                        rotation = rotation % 4;
                     }
-                    rotation += 3;
-                    rotation = rotation % 4;
+                    inputCount++;
+                    inputs.add(Input.CCW);
                 }
             }
             case HOLD -> {
@@ -344,12 +379,8 @@ public class Tetris {
                         hold = queue.get(queueIndex);
                         queue.set(queueIndex, temp);
                     }
-                    position[0] = 4;
-                    position[1] = 1;
-                    rotation = 0;
-                    inputCount = 0;
-                    spinLevel = 0;
-                    lowest = 1;
+                    reset();
+                    inputs.add(Input.HOLD);
                 }
             }
             default -> {}
@@ -365,13 +396,11 @@ public class Tetris {
      */
     public void place() {
         //Move piece down until it collides
-        while (!collide(board, queue.get(queueIndex), position, rotation)) {
+        while (!collide(board, queue.get(queueIndex), position[0], position[1] + 1, rotation)) {
             position[1]++;
             spinLevel = 0;
             score += 2;
         }
-        position[1]--;
-        score -= 2;
         //Fill tiles where the piece will be placed
         int[][] shape = getShape(queue.get(queueIndex), rotation);
         for (int i = 0; i < 4; i++) {
@@ -389,13 +418,37 @@ public class Tetris {
         }
         //Check for any spins (incomplete)
         if (spinLevel > 0) {
-            int corners = 0;
-            corners += (position[0] == 0 || position[1] == 0 || board[position[1] - 1][position[0] - 1] != Piece.EMPTY) ? 1 : 0;
-            corners += (position[0] < 9 || position[1] == 0 || board[position[1] + 1][position[0] - 1] != Piece.EMPTY) ? 1 : 0;
-            corners += (position[0] == 0 || position[1] < 19 || board[position[1] - 1][position[0] + 1] != Piece.EMPTY) ? 1 : 0;
-            corners += (position[0] < 9 || position[1] < 19 || board[position[1] + 1][position[0] + 1] != Piece.EMPTY) ? 1 : 0;
-            if (corners > 2) {
-                spinLevel = 2;
+            boolean[] corners = {false, false, false, false};
+            corners[0] = position[0] == 0 || position[1] == 0 || board[position[1] - 1][position[0] - 1] != Piece.EMPTY;
+            corners[1] = position[0] < 9 || position[1] == 0 || board[position[1] + 1][position[0] - 1] != Piece.EMPTY;
+            corners[2] = position[0] == 0 || position[1] < 19 || board[position[1] - 1][position[0] + 1] != Piece.EMPTY;
+            corners[3] = position[0] < 9 || position[1] < 19 || board[position[1] + 1][position[0] + 1] != Piece.EMPTY;
+            if ((corners[0] ? 1 : 0) + (corners[1] ? 1 : 0) + (corners[2] ? 1 : 0) + (corners[3] ? 1 : 0) > 2) {
+                if (spinLevel == 1) {
+                    switch (rotation) { //Check if front corners are filled
+                        case 0 -> {
+                            if (corners[0] && corners[1]) {
+                                spinLevel = 2;
+                            }
+                        }
+                        case 1 -> {
+                            if (corners[1] && corners[3]) {
+                                spinLevel = 2;
+                            }
+                        }
+                        case 2 -> {
+                            if (corners[2] && corners[3]) {
+                                spinLevel = 2;
+                            }
+                        }
+                        case 3 -> {
+                            if (corners[0] && corners[2]) {
+                                spinLevel = 2;
+                            }
+                        }
+                        default -> {} //Default case should never happen
+                    }
+                }
             }
         }
         //Detect and clear filled lines
@@ -423,19 +476,35 @@ public class Tetris {
             }
         }
         //TODO: Add score for clearing lines
+        if (cleared > 0) {
+            combo++;
+            if ((queue.get(queueIndex) == Piece.T && spinLevel > 0) || cleared > 3) {
+                b2b++;
+            }
+            else {
+                b2b = -1;
+            }
+        }
+        else {
+            combo = -1;
+        }
+        boolean allclear = true;
+        for (int y = 0; y < 20; y++) {
+            for (int x = 0; x < 10; x++) {
+                if (board[y][x] != Piece.EMPTY) {
+                    allclear = false;
+                }
+            }
+        }
+        score += (SCORE_TABLE[allclear ? 3 : spinLevel][b2b > 0 ? 1 : 0][cleared] + Math.max(0, combo) * 50) * (lines / 10 + 1);
+        lines += cleared;
         //Update queue and add another bag if necessary
         queueIndex++;
         if (queueIndex + 5 > queue.size()) {
             queue.addAll(sevenBag());
         }
-        //Reset piece state
-        position[0] = 4;
-        position[1] = 1;
-        rotation = 0;
+        reset();
         canHold = true;
-        inputCount = 0;
-        spinLevel = 0;
-        lowest = 1;
     }
 
     /**
@@ -444,7 +513,7 @@ public class Tetris {
      * mapped in the Input enum.
      */
     public List<Input> getValidMoves() {
-        List<Input> validMoves = new ArrayList<Input>(7);
+        List<Input> validMoves = new ArrayList<>(7);
         validMoves.add(Input.HARDDROP); //Hard drop is always valid
         //Check soft drop
         int[] softdrop = {position[0], position[1] + 1};
@@ -504,5 +573,16 @@ public class Tetris {
         return shape;
     }
 
+    /**
+     * Resets the piece state when a new piece spawns.
+     */
+    public void reset() {
+        position[0] = 4;
+        position[1] = 1;
+        rotation = 0;
+        inputCount = 0;
+        spinLevel = 0;
+        lowest = 1;
+    }
     //Add instance methods here as necessary
 }
