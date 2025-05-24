@@ -273,6 +273,7 @@ public class Tetris {
         score = 0;
         combo = -1;
         b2b = -1;
+        lines = 180;
         queue = new ArrayList<>(sevenBag());
         queueIndex = 0;
         board = new Piece[20][10];
@@ -385,8 +386,13 @@ public class Tetris {
             }
             default -> {}
         }
-        if (inputCount > 15) {
+        if (inputCount > 15 && !validMoves.contains(Input.SOFTDROP)) {
             place();
+        }
+        if (lines >= 190) {
+            while (!collide(board, queue.get(queueIndex), position[0], position[1] + 1, rotation)) {
+                position[1]++;
+            }
         }
     }
 
@@ -475,7 +481,9 @@ public class Tetris {
                 y++;
             }
         }
-        //TODO: Add score for clearing lines
+        if (queue.get(queueIndex) != Piece.T) {
+            spinLevel = 0;
+        }
         if (cleared > 0) {
             combo++;
             if ((queue.get(queueIndex) == Piece.T && spinLevel > 0) || cleared > 3) {
@@ -583,6 +591,11 @@ public class Tetris {
         inputCount = 0;
         spinLevel = 0;
         lowest = 1;
+        if (lines >= 190) {
+            while (!collide(board, queue.get(queueIndex), position[0], position[1] + 1, rotation)) {
+                position[1]++;
+            }
+        }
     }
     //Add instance methods here as necessary
 }
