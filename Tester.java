@@ -1,7 +1,6 @@
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
-import java.util.List;
 import javax.swing.JFrame;
 
 /**
@@ -58,7 +57,6 @@ public class Tester extends Canvas {
 
     @Override
     public void paint(Graphics g) {
-        List<Tetris.Piece> next = tetris.getNext(4);
         g.setColor(Color.BLACK);
         g.fillRect(0, 0, 600, 600);
         g.setColor(Color.WHITE);
@@ -74,14 +72,14 @@ public class Tester extends Canvas {
         for (int i = 0; i < 4; i++) {
             g.fillRect(shape[i][0] * 20 + 200, shape[i][1] * 20 + 100, 20, 20);
         }
-        shape = Tetris.getShape(next.get(0), tetris.rotation);
-        g.setColor(new Color(Tetris.getColor(next.get(0))));
+        shape = Tetris.getShape(tetris.queue.get(0), tetris.rotation);
+        g.setColor(new Color(Tetris.getColor(tetris.queue.get(0))));
         for (int i = 0; i < 4; i++) {
             g.fillRect((shape[i][0] + tetris.position[0]) * 20 + 200, (shape[i][1] + tetris.position[1]) * 20 + 100, 20, 20);
         }
         for (int i = 1; i <= 3; i++) {
-            shape = Tetris.getShape(next.get(i), 0);
-            g.setColor(new Color(Tetris.getColor(next.get(i))));
+            shape = Tetris.getShape(tetris.queue.get(i), 0);
+            g.setColor(new Color(Tetris.getColor(tetris.queue.get(i))));
             for (int j = 0; j < 4; j++) {
                 g.fillRect(shape[j][0] * 20 + 460, shape[j][1] * 20 + 100 + 60 * i, 20, 20);
             }
@@ -98,5 +96,6 @@ public class Tester extends Canvas {
         g.drawString("Lines: " + tetris.lines, 60, 220);
         g.drawString("Combo: " + tetris.combo, 60, 240);
         g.drawString("Back-to-back: " + tetris.b2b, 60, 260);
+        g.drawString("Alive: " + tetris.alive, 60, 280);
     }
 }

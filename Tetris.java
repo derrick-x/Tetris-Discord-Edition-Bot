@@ -159,7 +159,7 @@ public class Tetris {
      * forces a full spin (level 3 or 4 kick), 0 otherwise. Returns null if
      * rotation is not possible with any kick.
      */
-    public static int[] srs(Piece[][] board, Piece piece, int[] position, int rotation, boolean clockwise) {
+    public static int[] srs(Piece[][] board, List<Piece[]> overflow, Piece piece, int[] position, int rotation, boolean clockwise) {
         if (piece == Piece.O) {
             int[] srs = {0, 0, 0};
             return srs;
@@ -167,12 +167,12 @@ public class Tetris {
         
         for (int i = 0; i < 5; i++) {
             if (piece == Piece.I) {
-                if (!collide(board, piece, position[0] + I_SRS[rotation + (clockwise ? 0 : 4)][i][0], position[1] + I_SRS[rotation + (clockwise ? 0 : 4)][i][1], rotation + (clockwise ? 1 : 3))) {
+                if (!collide(board, overflow, piece, position[0] + I_SRS[rotation + (clockwise ? 0 : 4)][i][0], position[1] + I_SRS[rotation + (clockwise ? 0 : 4)][i][1], rotation + (clockwise ? 1 : 3))) {
                     int[] srs = {I_SRS[rotation + (clockwise ? 0 : 4)][i][0], I_SRS[rotation + (clockwise ? 0 : 4)][i][1], i > 2 ? 1 : 0};
                     return srs;
                 }
             }
-            if (!collide(board, piece, position[0] + SRS[rotation + (clockwise ? 0 : 4)][i][0], position[1] + SRS[rotation + (clockwise ? 0 : 4)][i][1], rotation + (clockwise ? 1 : 3))) {
+            if (!collide(board, overflow, piece, position[0] + SRS[rotation + (clockwise ? 0 : 4)][i][0], position[1] + SRS[rotation + (clockwise ? 0 : 4)][i][1], rotation + (clockwise ? 1 : 3))) {
                 int[] srs = {SRS[rotation + (clockwise ? 0 : 4)][i][0], SRS[rotation + (clockwise ? 0 : 4)][i][1], i > 2 ? 1 : 0};
                 return srs;
             }
@@ -189,7 +189,7 @@ public class Tetris {
      * @param rotation The rotation state of the piece.
      * @return True if the piece will collide with a filled tile in the board.
      */
-    public static boolean collide(Piece[][] board, Piece piece, int[] pos, int rotation) {
+    public static boolean collide(Piece[][] board, List<Piece[]> overflow, Piece piece, int[] pos, int rotation) {
         int[][] shape = getShape(piece, rotation);
         for (int i = 0; i < 4; i++) {
             //Out of bounds checks
@@ -203,8 +203,15 @@ public class Tetris {
                 return true;
             }
             //Tile collision check
-            if (shape[i][1] + pos[1] >= 0 && board[shape[i][1] + pos[1]][shape[i][0] + pos[0]] != Piece.EMPTY) {
-                return true;
+            if (shape[i][1] + pos[1] < 0) {
+                if (overflow.size() < 0 - shape[i][1] - pos[1] || overflow.get(-1 - shape[i][1] - pos[1])[shape[i][0] + pos[0]] == Piece.EMPTY) {
+
+                }
+            }
+            else {
+                if (board[shape[i][1] + pos[1]][shape[i][0] + pos[0]] != Piece.EMPTY) {
+                    return true;
+                }
             }
         }
         return false;
@@ -220,9 +227,9 @@ public class Tetris {
      * @param rotation The rotation state of the piece.
      * @return True if the piece will collide with a filled tile in the board.
      */
-    public static boolean collide(Piece[][] board, Piece piece, int xPos, int yPos, int rotation) {
+    public static boolean collide(Piece[][] board, List<Piece[]> overflow, Piece piece, int xPos, int yPos, int rotation) {
         int[] pos = {xPos, yPos};
-        return collide(board, piece, pos, rotation);
+        return collide(board, overflow, piece, pos, rotation);
     }
 
     /**
@@ -254,8 +261,8 @@ public class Tetris {
     int combo;
     int b2b; //True if previous clear was a b2b clear
     int lines; //Level can be calculated as lines / 10 + 1
-    ArrayList<Piece> queue; //Contains ALL pieces that appeared and will appear in order
-    int queueIndex; //The index of the piece currently on the board
+    ArrayList<Piece> fullQueue; //Contains ALL pieces that appeared and will appear in order, unaffected by holding
+    LinkedList<Piece> queue; //Contains the upcoming pieces in order, affected by holding
     Piece[][] board; //0 for empty, otherwise number that corresponds to the piece color, board[y][x]
     List<Piece[]> overflow; //Tiles that go over the top of the board
     Piece hold;
@@ -267,15 +274,16 @@ public class Tetris {
     String message; //Any message to display, such as the type of line cleared
     int spinLevel; //Whether the last successful move was a rotation
     int lowest; //Lowest y position ever reached, used for instant lock condition
+    boolean alive;
     //Add instance variables here as necessary
 
     public Tetris() {
         score = 0;
         combo = -1;
         b2b = -1;
-        lines = 180;
-        queue = new ArrayList<>(sevenBag());
-        queueIndex = 0;
+        lines = 0;
+        fullQueue = new ArrayList<>(sevenBag());
+        queue = new LinkedList<>(fullQueue);
         board = new Piece[20][10];
         for (int i = 0; i < 20; i++) {
             Arrays.fill(board[i], Piece.EMPTY);
@@ -292,6 +300,7 @@ public class Tetris {
         message = "";
         spinLevel = 0;
         lowest = 1;
+        alive = true;
     }
 
     /**
@@ -317,6 +326,7 @@ public class Tetris {
                     score++;
                     inputCount = 0;
                     inputs.add(Input.SOFTDROP);
+                    grav20();
                 }
             }
             case LEFT -> {
@@ -325,6 +335,7 @@ public class Tetris {
                     spinLevel = 0;
                     inputCount++;
                     inputs.add(Input.LEFT);
+                    grav20();
                 }
             }
             case RIGHT -> {
@@ -333,12 +344,14 @@ public class Tetris {
                     spinLevel = 0;
                     inputCount++;
                     inputs.add(Input.RIGHT);
+                    grav20();
                 }
             }
             case CW -> {
                 if (validMoves.contains(Input.CW)) {
-                    if (queue.get(queueIndex) != Piece.O) {
-                        int[] kick = srs(board, queue.get(queueIndex), position, rotation, true);
+                    grav20();
+                    if (queue.peek() != Piece.O) {
+                        int[] kick = srs(board, overflow, queue.peek(), position, rotation, true);
                         position[0] += kick[0];
                         position[1] += kick[1];
                         spinLevel = 1;
@@ -354,8 +367,9 @@ public class Tetris {
             }
             case CCW -> {
                 if (validMoves.contains(Input.CCW)) {
-                    if (queue.get(queueIndex) != Piece.O) {
-                        int[] kick = srs(board, queue.get(queueIndex), position, rotation, false);
+                    grav20();
+                    if (queue.peek() != Piece.O) {
+                        int[] kick = srs(board, overflow, queue.peek(), position, rotation, false);
                         position[0] += kick[0];
                         position[1] += kick[1];
                         spinLevel = 1;
@@ -373,12 +387,12 @@ public class Tetris {
                 if (validMoves.contains(Input.HOLD)) {
                     canHold = false;
                     if (hold == Piece.EMPTY) {
-                        hold = queue.remove(queueIndex);
+                        hold = queue.poll();
                     }
                     else {
                         Piece temp = hold;
-                        hold = queue.get(queueIndex);
-                        queue.set(queueIndex, temp);
+                        hold = queue.peek();
+                        queue.set(0, temp);
                     }
                     reset();
                     inputs.add(Input.HOLD);
@@ -389,11 +403,6 @@ public class Tetris {
         if (inputCount > 15 && !validMoves.contains(Input.SOFTDROP)) {
             place();
         }
-        if (lines >= 190) {
-            while (!collide(board, queue.get(queueIndex), position[0], position[1] + 1, rotation)) {
-                position[1]++;
-            }
-        }
     }
 
     /**
@@ -402,13 +411,14 @@ public class Tetris {
      */
     public void place() {
         //Move piece down until it collides
-        while (!collide(board, queue.get(queueIndex), position[0], position[1] + 1, rotation)) {
+        while (!collide(board, overflow, queue.get(0), position[0], position[1] + 1, rotation)) {
             position[1]++;
             spinLevel = 0;
             score += 2;
         }
         //Fill tiles where the piece will be placed
-        int[][] shape = getShape(queue.get(queueIndex), rotation);
+        int[][] shape = getShape(queue.get(0), rotation);
+        boolean inBounds = false;
         for (int i = 0; i < 4; i++) {
             if (shape[i][1] + position[1] < 0) {
                 while (overflow.size() < 0 - shape[i][1] - position[1]) {
@@ -416,11 +426,15 @@ public class Tetris {
                     Arrays.fill(emptyRow, Piece.EMPTY);
                     overflow.add(emptyRow);
                 }
-                overflow.get(-1 - shape[i][1] - position[1])[shape[i][0] + position[0]] = queue.get(queueIndex);
+                overflow.get(-1 - shape[i][1] - position[1])[shape[i][0] + position[0]] = queue.get(0);
             }
             else {
-                board[shape[i][1] + position[1]][shape[i][0] + position[0]] = queue.get(queueIndex);
+                inBounds = true;
+                board[shape[i][1] + position[1]][shape[i][0] + position[0]] = queue.get(0);
             }
+        }
+        if (!inBounds) {
+            alive = false;
         }
         //Check for any spins (incomplete)
         if (spinLevel > 0) {
@@ -481,12 +495,12 @@ public class Tetris {
                 y++;
             }
         }
-        if (queue.get(queueIndex) != Piece.T) {
+        if (queue.get(0) != Piece.T) {
             spinLevel = 0;
         }
         if (cleared > 0) {
             combo++;
-            if ((queue.get(queueIndex) == Piece.T && spinLevel > 0) || cleared > 3) {
+            if ((queue.get(0) == Piece.T && spinLevel > 0) || cleared > 3) {
                 b2b++;
             }
             else {
@@ -507,10 +521,7 @@ public class Tetris {
         score += (SCORE_TABLE[allclear ? 3 : spinLevel][b2b > 0 ? 1 : 0][cleared] + Math.max(0, combo) * 50) * (lines / 10 + 1);
         lines += cleared;
         //Update queue and add another bag if necessary
-        queueIndex++;
-        if (queueIndex + 5 > queue.size()) {
-            queue.addAll(sevenBag());
-        }
+        queue.poll();
         reset();
         canHold = true;
     }
@@ -525,25 +536,25 @@ public class Tetris {
         validMoves.add(Input.HARDDROP); //Hard drop is always valid
         //Check soft drop
         int[] softdrop = {position[0], position[1] + 1};
-        if (!collide(board, queue.get(queueIndex), softdrop, rotation)) {
+        if (!collide(board, overflow, queue.get(0), softdrop, rotation)) {
             validMoves.add(Input.SOFTDROP);
         }
         //Check move left
         int[] moveleft = {position[0] - 1, position[1]};
-        if (!collide(board, queue.get(queueIndex), moveleft, rotation)) {
+        if (!collide(board, overflow, queue.get(0), moveleft, rotation)) {
             validMoves.add(Input.LEFT);
         }
         //Check move right
         int[] moveright = {position[0] + 1, position[1]};
-        if (!collide(board, queue.get(queueIndex), moveright, rotation)) {
+        if (!collide(board, overflow, queue.get(0), moveright, rotation)) {
             validMoves.add(Input.RIGHT);
         }
         //Check rotate cw
-        if (srs(board, queue.get(queueIndex), position, rotation, true) != null) {
+        if (srs(board, overflow, queue.get(0), position, rotation, true) != null) {
             validMoves.add(Input.CW);
         }
         //Check rotate ccw
-        if (srs(board, queue.get(queueIndex), position, rotation, false) != null) {
+        if (srs(board, overflow, queue.get(0), position, rotation, false) != null) {
             validMoves.add(Input.CCW);
         }
         //Check hold
@@ -554,26 +565,15 @@ public class Tetris {
     }
 
     /**
-     * Returns the upcoming pieces in the queue.
-     * @param amount The amount of pieces to return in the queue.
-     * @return A list containing the specified number of upcoming pieces in the
-     * queue, if it does not exceed the amount of pieces added to the queue,
-     * otherwise it returns as many pieces as it can.
-     */
-    public List<Piece> getNext(int amount) {
-        return queue.subList(queueIndex, Math.min(queue.size(), queueIndex + amount));
-    }
-
-    /**
      * Returns the shadow of the current piece.
      * @return An array of [x, y] denoting the tiles of the shadow.
      */
     public int[][] getShadow() {
         int[] shadow = {position[0], position[1]};
-        while (!collide(board, queue.get(queueIndex), shadow[0], shadow[1] + 1, rotation)) {
+        while (!collide(board, overflow, queue.get(0), shadow[0], shadow[1] + 1, rotation)) {
             shadow[1]++;
         }
-        int[][] shape = getShape(queue.get(queueIndex), rotation);
+        int[][] shape = getShape(queue.get(0), rotation);
         for (int i = 0; i < 4; i++) {
             shape[i][0] += shadow[0];
             shape[i][1] += shadow[1];
@@ -591,8 +591,28 @@ public class Tetris {
         inputCount = 0;
         spinLevel = 0;
         lowest = 1;
+        if (collide(board, overflow, queue.get(0), position, rotation)) {
+            position[1]--;
+            if (collide(board, overflow, queue.get(0), position, rotation)) {
+                alive = false;
+            }
+        }
+        if (queue.size() < 5) {
+            List<Piece> newBag = sevenBag();
+            for (int i = 0; i < 7; i++) {
+                fullQueue.add(newBag.get(i));
+                queue.add(newBag.get(i));
+            }
+        }
+        grav20();
+    }
+    
+    /**
+     * Forces pieces down if 20g is reached.
+     */
+    public void grav20() {
         if (lines >= 190) {
-            while (!collide(board, queue.get(queueIndex), position[0], position[1] + 1, rotation)) {
+            while (!collide(board, overflow, queue.get(0), position[0], position[1] + 1, rotation)) {
                 position[1]++;
             }
         }
