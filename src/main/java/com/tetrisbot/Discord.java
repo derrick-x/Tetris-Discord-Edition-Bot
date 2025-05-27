@@ -1,3 +1,5 @@
+package com.tetrisbot;
+
 /**
  * This class handles interactions with the Discord API. Each instance should
  * be deployed to a separate channel.

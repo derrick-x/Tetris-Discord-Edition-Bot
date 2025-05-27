@@ -1,3 +1,5 @@
+package com.tetrisbot;
+
 import java.util.*;
 
 /**
@@ -86,14 +88,14 @@ public class Tetris {
     static int[][] getShape(Piece piece, int rotation) {
         int[][] shape = null;
         switch (piece) {
-            case I -> shape = arrayCopy2D(SHAPES[0]);
-            case J -> shape = arrayCopy2D(SHAPES[1]);
-            case L -> shape = arrayCopy2D(SHAPES[2]);
-            case O -> shape = arrayCopy2D(SHAPES[3]);
-            case S -> shape = arrayCopy2D(SHAPES[4]);
-            case T -> shape = arrayCopy2D(SHAPES[5]);
-            case Z -> shape = arrayCopy2D(SHAPES[6]);
-            default -> {}
+            case I: shape = arrayCopy2D(SHAPES[0]); break;
+            case J: shape = arrayCopy2D(SHAPES[1]); break;
+            case L: shape = arrayCopy2D(SHAPES[2]); break;
+            case O: shape = arrayCopy2D(SHAPES[3]); break;
+            case S: shape = arrayCopy2D(SHAPES[4]); break;
+            case T: shape = arrayCopy2D(SHAPES[5]); break;
+            case Z: shape = arrayCopy2D(SHAPES[6]); break;
+            default: {}
         }
         if (shape == null) { //This should never be true
             return shape;
@@ -108,16 +110,16 @@ public class Tetris {
      * @return A hexadecimal integer representation of a 3-channel color.
      */
     public static int getColor(Piece piece) {
-        return switch (piece) {
-            case I -> 0x00ffff;
-            case J -> 0x0000ff;
-            case L -> 0xff7f00;
-            case O -> 0xffff00;
-            case S -> 0x00ff00;
-            case T -> 0x7f00ff;
-            case Z -> 0xff0000;
-            default -> 0x000000;
-        };
+        switch (piece) {
+            case I: return 0x00ffff;
+            case J: return 0x0000ff;
+            case L: return 0xff7f00;
+            case O: return 0xffff00;
+            case S: return 0x00ff00;
+            case T: return 0x7f00ff;
+            case Z: return 0xff0000;
+            default: return 0x000000;
+        }
     }
 
     /**
@@ -312,13 +314,13 @@ public class Tetris {
     public void input(Input input) {
         List<Input> validMoves = getValidMoves();
         switch (input) {
-            case HARDDROP -> {
+            case HARDDROP: {
                 if (validMoves.contains(Input.HARDDROP)) {
                     place();
                     inputs.add(Input.HARDDROP);
                 }
-            }
-            case SOFTDROP -> {
+            } break;
+            case SOFTDROP: {
                 if (validMoves.contains(Input.SOFTDROP)) {
                     position[1]++;
                     lowest = Math.max(position[1], lowest);
@@ -328,8 +330,8 @@ public class Tetris {
                     inputs.add(Input.SOFTDROP);
                     grav20();
                 }
-            }
-            case LEFT -> {
+            } break;
+            case LEFT: {
                 if (validMoves.contains(Input.LEFT)) {
                     position[0]--;
                     spinLevel = 0;
@@ -337,8 +339,8 @@ public class Tetris {
                     inputs.add(Input.LEFT);
                     grav20();
                 }
-            }
-            case RIGHT -> {
+            } break;
+            case RIGHT: {
                 if (validMoves.contains(Input.RIGHT)) {
                     position[0]++;
                     spinLevel = 0;
@@ -346,8 +348,8 @@ public class Tetris {
                     inputs.add(Input.RIGHT);
                     grav20();
                 }
-            }
-            case CW -> {
+            } break;
+            case CW: {
                 if (validMoves.contains(Input.CW)) {
                     grav20();
                     if (queue.peek() != Piece.O) {
@@ -364,8 +366,8 @@ public class Tetris {
                     inputCount++;
                     inputs.add(Input.CW);
                 }
-            }
-            case CCW -> {
+            } break;
+            case CCW: {
                 if (validMoves.contains(Input.CCW)) {
                     grav20();
                     if (queue.peek() != Piece.O) {
@@ -382,8 +384,8 @@ public class Tetris {
                     inputCount++;
                     inputs.add(Input.CCW);
                 }
-            }
-            case HOLD -> {
+            } break;
+            case HOLD: {
                 if (validMoves.contains(Input.HOLD)) {
                     canHold = false;
                     if (hold == Piece.EMPTY) {
@@ -397,8 +399,8 @@ public class Tetris {
                     reset();
                     inputs.add(Input.HOLD);
                 }
-            }
-            default -> {}
+            } break;
+            default: {}
         }
         if (inputCount > 15 && !validMoves.contains(Input.SOFTDROP)) {
             place();
@@ -411,6 +413,7 @@ public class Tetris {
      */
     public void place() {
         //Move piece down until it collides
+        message = "";
         while (!collide(board, overflow, queue.get(0), position[0], position[1] + 1, rotation)) {
             position[1]++;
             spinLevel = 0;
@@ -436,40 +439,50 @@ public class Tetris {
         if (!inBounds) {
             alive = false;
         }
-        //Check for any spins (incomplete)
+        //Check for any spins
         if (spinLevel > 0) {
-            boolean[] corners = {false, false, false, false};
+            boolean[] corners = new boolean[4];
             corners[0] = position[0] == 0 || position[1] == 0 || board[position[1] - 1][position[0] - 1] != Piece.EMPTY;
-            corners[1] = position[0] < 9 || position[1] == 0 || board[position[1] + 1][position[0] - 1] != Piece.EMPTY;
-            corners[2] = position[0] == 0 || position[1] < 19 || board[position[1] - 1][position[0] + 1] != Piece.EMPTY;
-            corners[3] = position[0] < 9 || position[1] < 19 || board[position[1] + 1][position[0] + 1] != Piece.EMPTY;
+            corners[1] = position[0] == 0 || position[1] > 18 || board[position[1] + 1][position[0] - 1] != Piece.EMPTY;
+            corners[2] = position[0] > 8 || position[1] == 0 || board[position[1] - 1][position[0] + 1] != Piece.EMPTY;
+            corners[3] = position[0] > 8 || position[1] > 18 || board[position[1] + 1][position[0] + 1] != Piece.EMPTY;
+            System.out.println(Arrays.toString(corners));
             if ((corners[0] ? 1 : 0) + (corners[1] ? 1 : 0) + (corners[2] ? 1 : 0) + (corners[3] ? 1 : 0) > 2) {
                 if (spinLevel == 1) {
                     switch (rotation) { //Check if front corners are filled
-                        case 0 -> {
-                            if (corners[0] && corners[1]) {
-                                spinLevel = 2;
-                            }
-                        }
-                        case 1 -> {
-                            if (corners[1] && corners[3]) {
-                                spinLevel = 2;
-                            }
-                        }
-                        case 2 -> {
-                            if (corners[2] && corners[3]) {
-                                spinLevel = 2;
-                            }
-                        }
-                        case 3 -> {
+                        case 0: {
                             if (corners[0] && corners[2]) {
                                 spinLevel = 2;
                             }
-                        }
-                        default -> {} //Default case should never happen
+                        } break;
+                        case 1: {
+                            if (corners[2] && corners[3]) {
+                                spinLevel = 2;
+                            }
+                        } break;
+                        case 2: {
+                            if (corners[1] && corners[3]) {
+                                spinLevel = 2;
+                            }
+                        } break;
+                        case 3: {
+                            if (corners[0] && corners[1]) {
+                                spinLevel = 2;
+                            }
+                        } break;
+                        default: {} //Default case should never happen
                     }
                 }
             }
+            else {
+                spinLevel = 0;
+            }
+        }
+        if (spinLevel == 1) {
+            message = "MINI T-SPIN ";
+        }
+        if (spinLevel == 2) {
+            message = "T-SPIN ";
         }
         //Detect and clear filled lines
         int cleared = 0;
@@ -495,6 +508,21 @@ public class Tetris {
                 y++;
             }
         }
+        switch (cleared) {
+            case 1:
+            message += "SINGLE";
+            break;
+            case 2:
+            message += "DOUBLE";
+            break;
+            case 3:
+            message += "TRIPLE";
+            break;
+            case 4:
+            message += "TETRIS";
+            break;
+            default:
+        }
         if (queue.get(0) != Piece.T) {
             spinLevel = 0;
         }
@@ -517,6 +545,9 @@ public class Tetris {
                     allclear = false;
                 }
             }
+        }
+        if (allclear) {
+            message = "ALL CLEAR " + message;
         }
         score += (SCORE_TABLE[allclear ? 3 : spinLevel][b2b > 0 ? 1 : 0][cleared] + Math.max(0, combo) * 50) * (lines / 10 + 1);
         lines += cleared;

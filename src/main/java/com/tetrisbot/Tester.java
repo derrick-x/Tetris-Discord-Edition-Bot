@@ -1,6 +1,11 @@
-import java.awt.*;
+package com.tetrisbot;
+
+import java.awt.Canvas;
+import java.awt.Color;
+import java.awt.Graphics;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+
 import javax.swing.JFrame;
 
 /**
@@ -97,5 +102,6 @@ public class Tester extends Canvas {
         g.drawString("Combo: " + tetris.combo, 60, 240);
         g.drawString("Back-to-back: " + tetris.b2b, 60, 260);
         g.drawString("Alive: " + tetris.alive, 60, 280);
+        g.drawString(tetris.message, 60, 300);
     }
 }
