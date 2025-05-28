@@ -17,7 +17,18 @@ import net.dv8tion.jda.api.requests.GatewayIntent;
  */
 
 public class Bot extends ListenerAdapter {
-    static HashMap<Long, Tetris> games;
+    static HashMap<Long, Game> games;
+
+    static class Game {
+        Tetris tetris;
+        String lastUser;
+        String owner;
+        public Game(String o) {
+            tetris = new Tetris();
+            lastUser = "";
+            owner = o;
+        }
+    }
     
     public static void main(String[] args) throws LoginException {
         String token = ""; //use your own bot token when testing
@@ -33,16 +44,16 @@ public class Bot extends ListenerAdapter {
 
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {
-        if (event.getAuthor().isBot() || !event.getMessage().getContentRaw().substring(0, 8).equals("!tetris ")) {
+        if (event.getAuthor().isBot() || event.getMessage().getContentRaw().length() < 8 || !event.getMessage().getContentRaw().substring(0, 8).equals("!tetris ")) {
             return;
         }
         String[] args = event.getMessage().getContentRaw().split(" ");
-        Tetris game = games.get(event.getChannel().getIdLong());
+        Game game = games.get(event.getChannel().getIdLong());
         if (args[1].equals("start")) {
             if (game == null) {
-                event.getChannel().sendMessage("Starting game...").queue();
-                games.put(event.getChannel().getIdLong(), new Tetris());
-                sendTetris(event.getChannel(), games.get(event.getChannel().getIdLong()));
+                event.getChannel().sendMessage("Starting game by " + event.getAuthor().getName() + "...").queue();
+                games.put(event.getChannel().getIdLong(), new Game(event.getAuthor().getName()));
+                sendTetris(event.getChannel(), games.get(event.getChannel().getIdLong()).tetris);
             }
             else {
                 event.getChannel().sendMessage("Game already in progress!").queue();
@@ -52,9 +63,12 @@ public class Bot extends ListenerAdapter {
             if (game == null) {
                 event.getChannel().sendMessage("No game in progress!").queue();
             }
-            else {
+            else if (event.getAuthor().getName().equals(game.owner)) {
                 games.remove(event.getChannel().getIdLong());
                 event.getChannel().sendMessage("Game aborted").queue();
+            }
+            else {
+                event.getChannel().sendMessage("Only " + game.owner + " can abort the game!").queue();
             }
         }
         try {
@@ -62,12 +76,18 @@ public class Bot extends ListenerAdapter {
             if (game == null) {
                 event.getChannel().sendMessage("No game in progress!").queue();
             }
-            else if (game.getValidMoves().contains(input)) {
-                game.input(input);
-                event.getChannel().sendMessage(event.getAuthor().getName() + " played " + input).queue();
-                sendTetris(event.getChannel(), game);
-                if (game.lines >= 300 || !game.alive) {
-                    games.remove(event.getChannel().getIdLong());
+            else if (game.tetris.getValidMoves().contains(input)) {
+                if (!event.getAuthor().getName().equals(game.lastUser)) {
+                    game.lastUser = event.getAuthor().getName();
+                    game.tetris.input(input);
+                    event.getChannel().sendMessage(event.getAuthor().getName() + " played " + input).queue();
+                    sendTetris(event.getChannel(), game.tetris);
+                    if (game.tetris.lines >= 300 || !game.tetris.alive) {
+                        games.remove(event.getChannel().getIdLong());
+                    }
+                }
+                else {
+                    event.getChannel().sendMessage(event.getAuthor().getName() + ", you already played the last move!").queue();
                 }
             }
             else {
@@ -203,7 +223,7 @@ public class Bot extends ListenerAdapter {
             }
         }
         else {
-            message.append("\nGAME OVER!");
+            message.append("\nGame over!");
         }
         channel.sendMessage(message.toString()).queue();
     }
