@@ -11,7 +11,7 @@ import java.util.*;
 
 public class Tetris {
     static enum Piece {
-        I, J, L, O, S, T, Z, EMPTY
+        I, J, L, O, S, T, Z, EMPTY, SHADOW
     }
     static enum Input {
         HARDDROP, SOFTDROP, LEFT, RIGHT, CW, CCW, HOLD
@@ -526,6 +526,9 @@ public class Tetris {
         if (queue.get(0) != Piece.T) {
             spinLevel = 0;
         }
+        if (b2b > 0) {
+            message = "BACK-TO-BACK " + message;
+        }
         if (cleared > 0) {
             combo++;
             if ((queue.get(0) == Piece.T && spinLevel > 0) || cleared > 3) {
@@ -537,6 +540,9 @@ public class Tetris {
         }
         else {
             combo = -1;
+        }
+        if (combo > 0) {
+            message += "COMBO x" + combo;
         }
         boolean allclear = true;
         for (int y = 0; y < 20; y++) {
@@ -550,6 +556,9 @@ public class Tetris {
             message = "ALL CLEAR " + message;
         }
         score += (SCORE_TABLE[allclear ? 3 : spinLevel][b2b > 0 ? 1 : 0][cleared] + Math.max(0, combo) * 50) * (lines / 10 + 1);
+        if (cleared > 0 || spinLevel > 0) {
+            message += " (+" + (SCORE_TABLE[allclear ? 3 : spinLevel][b2b > 0 ? 1 : 0][cleared] + Math.max(0, combo) * 50) * (lines / 10 + 1) + ")";
+        }
         lines += cleared;
         //Update queue and add another bag if necessary
         queue.poll();
