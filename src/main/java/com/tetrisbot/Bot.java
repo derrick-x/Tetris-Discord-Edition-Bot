@@ -11,11 +11,16 @@ import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 
+/**
+ * This class handles the Discord API and runs the game simulation using inputs
+ * received from Discord users.
+ */
+
 public class Bot extends ListenerAdapter {
     static HashMap<Long, Tetris> games;
     
     public static void main(String[] args) throws LoginException {
-        String token = "";
+        String token = ""; //use your own bot token when testing
         JDABuilder.createDefault(token)
             .enableIntents(GatewayIntent.MESSAGE_CONTENT)
             .enableIntents(GatewayIntent.GUILD_PRESENCES)
@@ -73,6 +78,11 @@ public class Bot extends ListenerAdapter {
         }
     }
 
+    /**
+     * Sends a message using emojis to display a Tetris game.
+     * @param channel The channel to send the message.
+     * @param game The Tetris.java instance in to display.
+     */
     public void sendTetris(MessageChannelUnion channel, Tetris game) {
         StringBuilder message = new StringBuilder();
         int[][] shadow = game.getShadow();
@@ -197,6 +207,13 @@ public class Bot extends ListenerAdapter {
         }
         channel.sendMessage(message.toString()).queue();
     }
+
+    /**
+     * Returns a string representation of a Tetris piece that can be placed in
+     * a message.
+     * @param piece The Tetris piece to convert into a string.
+     * @return A string of emojis representing the specified Tetris piece.
+     */
     public static String pieceToString(Tetris.Piece piece) {
         switch(piece) {
             case I:
