@@ -1,11 +1,14 @@
 package com.tetrisbot;
 
-import java.util.ArrayList;
+import java.util.HashMap;
+
+import javax.security.auth.login.LoginException;
 
 public class Main {
-    static ArrayList<Bot> bots;
-    public static void main(String[] args) {
-        bots = new ArrayList<Bot>();
+    static HashMap<Long, Bot> bots;
+    public static void main(String[] args) throws LoginException {
+        bots = new HashMap<>();
+        Discord.init();
     }
 
     /**
@@ -13,10 +16,8 @@ public class Main {
      */
     static class Bot {
         Tetris game;
-        Discord api;
         public Bot() {
             game = new Tetris();
-            api = new Discord();
         }
     }
 }
