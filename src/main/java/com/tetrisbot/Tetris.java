@@ -304,6 +304,14 @@ public class Tetris {
         lowest = 1;
         alive = true;
     }
+    public Tetris(String sequence) { //Construct a Tetris game for replays
+        this();
+        fullQueue.clear();
+        for (int i = 0; i < sequence.length(); i++) {
+            fullQueue.add(Piece.valueOf(sequence.substring(i, i + 1)));
+        }
+        queue = new LinkedList<>(fullQueue);
+    }
 
     /**
      * Processes an input given in the parameter. If the input is illegal, do
@@ -446,7 +454,6 @@ public class Tetris {
             corners[1] = position[0] == 0 || position[1] > 18 || board[position[1] + 1][position[0] - 1] != Piece.EMPTY;
             corners[2] = position[0] > 8 || position[1] == 0 || board[position[1] - 1][position[0] + 1] != Piece.EMPTY;
             corners[3] = position[0] > 8 || position[1] > 18 || board[position[1] + 1][position[0] + 1] != Piece.EMPTY;
-            System.out.println(Arrays.toString(corners));
             if ((corners[0] ? 1 : 0) + (corners[1] ? 1 : 0) + (corners[2] ? 1 : 0) + (corners[3] ? 1 : 0) > 2) {
                 if (spinLevel == 1) {
                     switch (rotation) { //Check if front corners are filled
@@ -526,9 +533,6 @@ public class Tetris {
         if (queue.get(0) != Piece.T) {
             spinLevel = 0;
         }
-        if (b2b > 0) {
-            message = "BACK-TO-BACK " + message;
-        }
         if (cleared > 0) {
             combo++;
             if ((queue.get(0) == Piece.T && spinLevel > 0) || cleared > 3) {
@@ -537,12 +541,15 @@ public class Tetris {
             else {
                 b2b = -1;
             }
+            if (b2b > 0) {
+                message = "BACK-TO-BACK " + message;
+            }
         }
         else {
             combo = -1;
         }
         if (combo > 0) {
-            message += "COMBO x" + combo;
+            message += " COMBO x" + combo;
         }
         boolean allclear = true;
         for (int y = 0; y < 20; y++) {
