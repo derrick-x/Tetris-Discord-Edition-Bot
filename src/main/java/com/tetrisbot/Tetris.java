@@ -410,7 +410,7 @@ public class Tetris {
             } break;
             default: {}
         }
-        if (inputCount > 15 && !validMoves.contains(Input.SOFTDROP)) {
+        if (inputCount >= 15 && !validMoves.contains(Input.SOFTDROP)) {
             place();
         }
     }

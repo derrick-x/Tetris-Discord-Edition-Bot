@@ -30,6 +30,11 @@
         <artifactId>JDA</artifactId>
         <version>5.5.1</version>
     </dependency>
+    <dependency>
+      <groupId>org.json</groupId>
+      <artifactId>json</artifactId>
+      <version>20240303</version> <!-- latest as of 2024 -->
+    </dependency>
   </dependencies>
 
   <build>
