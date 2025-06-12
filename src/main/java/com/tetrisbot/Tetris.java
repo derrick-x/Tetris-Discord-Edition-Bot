@@ -16,6 +16,16 @@ public class Tetris {
     static enum Input {
         HARDDROP, SOFTDROP, LEFT, RIGHT, CW, CCW, HOLD
     }
+    static final String[] INPUT_EMOJIS = {"⏬", "⬇️", "⬅️", "➡️", "↩️", "↪️", "🔄"};
+    static final String[][] ABBREVIATIONS = {
+        {"HD"},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {}
+    };
     static final int[][][] SHAPES = {
         {{-1, 0}, {0, 0}, {1, 0}, {2, 0}},
         {{-1, -1}, {-1, 0}, {0, 0}, {1, 0}},
@@ -109,16 +119,16 @@ public class Tetris {
      * @param piece The piece to get the color of.
      * @return A hexadecimal integer representation of a 3-channel color.
      */
-    public static int getColor(Piece piece) {
+    public static int getColor(Piece piece, boolean bright) {
         switch (piece) {
-            case I: return 0x00ffff;
-            case J: return 0x0000ff;
-            case L: return 0xff7f00;
-            case O: return 0xffff00;
-            case S: return 0x00ff00;
-            case T: return 0x7f00ff;
-            case Z: return 0xff0000;
-            default: return 0x000000;
+            case I: return bright ? 0x7fffff : 0x00ffff;
+            case J: return bright ? 0x3f3fff : 0x0000ff;
+            case L: return bright ? 0xffbf3f : 0xff7f00;
+            case O: return bright ? 0xffff73 : 0xffff00;
+            case S: return bright ? 0x3fff3f : 0x00ff00;
+            case T: return bright ? 0xbf3fff : 0x7f00ff;
+            case Z: return bright ? 0xff3f3f : 0xff0000;
+            default: return bright ? 0x3f3f3f : 0x000000;
         }
     }
 
