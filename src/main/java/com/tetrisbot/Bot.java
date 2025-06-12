@@ -48,7 +48,7 @@ public class Bot extends ListenerAdapter {
     static final String token = ""; //If testing on your own, use your own bot token
     static final long botId = 1377027446783610890L; //replace with your bot's ID
     static final String gitToken = ""; //use your GitHub token
-    static final boolean DEBUG = true;
+    static final boolean DEBUG = false;
     static final String HELP =
     "Tetris Bot commands:" + "\n" +
     "start: starts a new game in a channel." + "\n" +
