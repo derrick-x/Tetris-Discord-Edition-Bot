@@ -22,6 +22,7 @@ import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import javax.imageio.ImageIO;
 import javax.imageio.stream.FileImageOutputStream;
@@ -31,8 +32,14 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import net.dv8tion.jda.api.JDABuilder;
+import net.dv8tion.jda.api.Permission;
+import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.channel.unions.MessageChannelUnion;
+import net.dv8tion.jda.api.entities.emoji.Emoji;
+import net.dv8tion.jda.api.events.message.GenericMessageEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
+import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent;
+import net.dv8tion.jda.api.exceptions.InsufficientPermissionException;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.FileUpload;
@@ -44,30 +51,43 @@ import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
  */
 
 public class Bot extends ListenerAdapter {
-    static HashMap<Long, Game> games;
     static final String token = ""; //If testing on your own, use your own bot token
     static final long botId = 1377027446783610890L; //replace with your bot's ID
     static final String gitToken = ""; //use your GitHub token
     static final boolean DEBUG = false;
     static final String HELP =
     "Tetris Bot commands:" + "\n" +
-    "start: starts a new game in a channel." + "\n" +
-    "abort: aborts the current game in a channel." + "\n" +
-    "[input]: plays the input, if valid. You can also enter any unambiguous prefix of the input, such as \"l\" for LEFT or \"ha\" for HARDDROP."+ "\n" +
-    "[input] -: repeats the input until it is no longer valid. Only applies to LEFT, RIGHT, and SOFTDROP."+ "\n" +
+    "* " + "`start`: starts a new game in a channel." + "\n" +
+    "* " + "`start react`: starts a new game in a channel with reaction-based inputs enabled. Note that in this mode, discussions in the channel should be minimal to avoid clutter." + "\n" +
+    "* " + "`abort`: aborts the current game in a channel." + "\n" +
+    "* " + "`react`: if reaction-based input mode is enabled, sends a new reaction panel in front of all messages. Useful if discussions pushed the message far away." + "\n" +
+    "* " + "`[input]`: plays the input, if valid. You can also enter any unambiguous prefix of the input, such as `l` for LEFT or `ha` for HARDDROP."+ "\n" +
+    "* " + "`[input] -`: repeats the input until it is no longer valid. Only applies to LEFT, RIGHT, and SOFTDROP."+ "\n" +
+    "* " + "`keybind {[input] [keybind]}`: sets the list of input-keybind pairs as your custom keybinds. For example, `keybind ha hd ho c ccw z` sets HARDDROP to hd, HOLD to c, and CCW to z. Custom keybinds are case sensitive." + "\n" +
+    "* " + "`keybind {[input] [keybind]}`: displays your current keybinds set." + "\n" +
     "You may send a command by using the \"!tetris\" prefix or by replying to any bot message in the same channel.";
+    static HashMap<Long, Game> games;
+    static HashMap<Long, HashMap<String, Tetris.Input>> keybinds;
 
     static class Game {
         Tetris tetris;
         String owner;
         long lastUserId;
-        //List<String> users;
+        long inputPanelId;
+        Message gameMessage;
         List<BufferedImage> frames;
-        public Game(String o) {
+        public Game(String o, boolean r) {
             tetris = new Tetris();
             owner = o;
             lastUserId = -1;
             frames = new ArrayList<>();
+            if (r){
+                inputPanelId = 0;
+            }
+            else {
+                inputPanelId = -1;
+            }
+            gameMessage = null;
         }
 
         /**
@@ -126,6 +146,7 @@ public class Bot extends ListenerAdapter {
     }
     
     public static void main(String[] args) throws LoginException {
+        keybinds = new HashMap<>();
         System.setProperty("java.awt.headless", "true");
         JDABuilder.createDefault(token)
             .enableIntents(GatewayIntent.MESSAGE_CONTENT)
@@ -157,7 +178,15 @@ public class Bot extends ListenerAdapter {
         if (args[0].equals("start")) {
             if (game == null) {
                 event.getChannel().sendMessage("Starting game by " + event.getAuthor().getName() + "...").queue();
-                games.put(event.getChannel().getIdLong(), new Game(event.getAuthor().getName()));
+                if (args.length > 1 && args[1].equals("react")) {
+                    if (!event.getGuild().getSelfMember().hasPermission(event.getGuildChannel(), Permission.MESSAGE_MANAGE)) {
+                        event.getChannel().sendMessage("WARNING: insufficient permission to remove reactions. You need to manually remove your reactions after using them.").queue();
+                    }
+                    games.put(event.getChannel().getIdLong(), new Game(event.getAuthor().getName(), true));
+                }
+                else {
+                    games.put(event.getChannel().getIdLong(), new Game(event.getAuthor().getName(), false));
+                }
                 sendTetris(event.getChannel(), games.get(event.getChannel().getIdLong()), null, null);
             }
             else {
@@ -202,10 +231,63 @@ public class Bot extends ListenerAdapter {
                 event.getChannel().sendMessage(msg.toString()).queue();
             }
         }
+        if (args[0].equals("keybind")) {
+            if (args.length % 2 != 1) {
+                event.getChannel().sendMessage("Incorrect number of arguments provided! (Please provide a list of input-string pairs)").queue();
+            }
+            else if (args.length == 1) {
+                HashMap<String, Tetris.Input> user = keybinds.get(event.getAuthor().getIdLong());
+                if (user == null) {
+                    event.getChannel().sendMessage(event.getAuthor().getEffectiveName() + ", you have no custom keybinds set!").queue();
+                }
+                else {
+                    StringBuilder msg = new StringBuilder(event.getAuthor().getEffectiveName() + " keybinds:\n");
+                    for (String key : user.keySet()) {
+                        msg.append(key).append(": ").append(user.get(key)).append("\n");
+                    }
+                    event.getChannel().sendMessage(msg.toString()).queue();
+                }
+            }
+            else {
+                StringBuilder msg = new StringBuilder(event.getAuthor().getEffectiveName() + " updated keybinds:\n");
+                HashMap<String, Tetris.Input> user = keybinds.get(event.getAuthor().getIdLong());
+                if (user == null) {
+                    user = new HashMap<>();
+                    keybinds.put(event.getAuthor().getIdLong(), user);
+                }
+                for (int i = 2; i < args.length; i += 2) {
+                    Tetris.Input input = stringToInput(args[i - 1], event.getAuthor().getIdLong());
+                    if (input != null) {
+                        user.put(args[i], input);
+                        msg.append(input).append(" set to ").append(args[i]).append("\n");
+                    }
+                }
+                event.getChannel().sendMessage(msg.toString()).queue();
+            }
+        }
+        if (args[0].equals("react")){
+            if (game == null) {
+                event.getChannel().sendMessage("No game in progress!").queue();
+            }
+            else {
+                if (game.inputPanelId < 0) {
+                    event.getChannel().sendMessage("Current game is not using reaction inputs!").queue();
+                }
+                else {
+                    event.getChannel().retrieveMessageById(game.inputPanelId).complete().delete().complete();
+                    event.getChannel().sendMessage("Use the reactions below to play inputs.").queue(sentMessage -> {
+                        game.inputPanelId = sentMessage.getIdLong();
+                        for (int i = 0; i < 7; i++) {
+                            sentMessage.addReaction(Emoji.fromUnicode(Tetris.INPUT_EMOJIS[i])).queue();
+                        }
+                    });
+                }
+            }
+        }
         if (args[0].equals("help")) {
             event.getChannel().sendMessage(HELP).queue();
         }
-        Tetris.Input input = stringToInput(args[0]);
+        Tetris.Input input = stringToInput(args[0], event.getAuthor().getIdLong());
         if (input != null) {
             if (game == null) {
                 event.getChannel().sendMessage("No game in progress!").queue();
@@ -224,6 +306,7 @@ public class Bot extends ListenerAdapter {
                     sendTetris(event.getChannel(), game, event.getMember().getEffectiveName(), input);
                     if (game.tetris.lines >= 300 || !game.tetris.alive) {
                         saveReplay(event, game);
+                        games.remove(event.getChannel().getIdLong());
                     }
                 }
                 else {
@@ -232,6 +315,48 @@ public class Bot extends ListenerAdapter {
             }
             else {
                 event.getChannel().sendMessage(input + " is not a valid move!").queue();
+            }
+        }
+    }
+
+    @Override
+    public void onMessageReactionAdd(MessageReactionAddEvent event) {
+        if (event.retrieveUser().complete().getIdLong() == botId) {
+            return;
+        }
+        Game game = games.get(event.getChannel().getIdLong());
+        if (game == null) {
+            return;
+        }
+        if (event.getMessageIdLong() == game.inputPanelId) {
+            try {
+                event.getReaction().removeReaction().complete();
+            } catch (InsufficientPermissionException e) {}
+            for (int i = 0; i < 7; i++) {
+                if (event.getEmoji().getName().equals(Tetris.INPUT_EMOJIS[i])) {
+                    Tetris.Input input = Tetris.Input.values()[i];
+                    if (DEBUG || event.retrieveUser().complete().getIdLong() != game.lastUserId) {
+                        if (game.tetris.getValidMoves().contains(input)) {
+                            game.lastUserId = event.retrieveUser().complete().getIdLong();
+                            game.tetris.input(input);
+                            sendTetris(event.getChannel(), game, event.retrieveMember().complete().getEffectiveName(), input);
+                            if (game.tetris.lines >= 300 || !game.tetris.alive) {
+                                saveReplay(event, game);
+                                games.remove(event.getChannel().getIdLong());
+                            }
+                        }
+                        else {
+                            event.getChannel().sendMessage(input + " is not a valid move!").queue(sentMessage -> {
+                                sentMessage.delete().submitAfter(5, TimeUnit.SECONDS);
+                            });
+                        }
+                    }
+                    else {
+                        event.getChannel().sendMessage(event.getMember().getEffectiveName() + ", you already played the last move!").queue(sentMessage -> {
+                            sentMessage.delete().submitAfter(5, TimeUnit.SECONDS);
+                        });
+                    }
+                }
             }
         }
     }
@@ -265,13 +390,38 @@ public class Bot extends ListenerAdapter {
             }
             message.setContent(text.toString());
             message.addFiles(FileUpload.fromData(imageBytes, "tetris.jpg"));
-            channel.sendMessage(message.build()).queue();
+            if (game.inputPanelId < 0) {
+                channel.sendMessage(message.build()).queue();
+            }
+            else {
+                if (game.gameMessage != null) {
+                    game.gameMessage.delete().queue();
+                }
+                else {
+                    channel.sendMessage("Use the reactions below to play inputs.").queue(sentMessage -> {
+                        game.inputPanelId = sentMessage.getIdLong();
+                        for (int i = 0; i < 7; i++) {
+                            sentMessage.addReaction(Emoji.fromUnicode(Tetris.INPUT_EMOJIS[i])).queue();
+                        }
+                    });
+                }
+                channel.sendMessage(message.build()).queue(sentMessage -> {
+                    game.gameMessage = sentMessage;
+                });
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    public static void saveReplay(MessageReceivedEvent event, Game game) {
+    /**
+     * Creates a replay of the finished game, uploads it to GitHub, and sends
+     * the link to the channel.
+     * @param event The MessageReceivedEvent where a replay is to be created.
+     * @param game The finished game to create a replay of.
+     */
+    public static void saveReplay(GenericMessageEvent event, Game game) {
+        event.getChannel().sendMessage("Creating replay, please wait...").queue();
         String id = game.saveReplay();
         if (id == null) {
             event.getChannel().sendMessage("Error creating replay!").queue();
@@ -280,21 +430,29 @@ public class Bot extends ListenerAdapter {
             event.getChannel().sendMessage("Replay not created: at least 10 inputs must be played to create a replay.").queue();
         }
         else {
-            event.getChannel().sendMessage("Creating replay with id \'" + id + "\'...").queue();
-            event.getChannel().sendMessage("You may need to open the gif in your browser for it to load.\n[Click here to download your replay](https://raw.githubusercontent.com/derrick-x/Tetris-Replays/main/replays/" + id + "-replay.gif)").queue();
+            event.getChannel().sendMessage("Created replay with id \'" + id + "\nYou may need to open the gif in your browser for it to load.\n[Click here to download your replay](https://raw.githubusercontent.com/derrick-x/Tetris-Replays/main/replays/" + id + "-replay.gif)").queue();
         }
     }
     
-    public static Tetris.Input stringToInput(String input) {
-        input = input.toUpperCase();
-        List<Tetris.Input> inputs = new ArrayList<>(Arrays.asList(Tetris.Input.values()));
-        for (int i = 0; i < 7; i++) {
-            for (int j = 0; j < Tetris.ABBREVIATIONS[i].length; i++) {
-                if (input.equals(Tetris.ABBREVIATIONS[i][j])) {
-                    return inputs.get(i);
+    /**
+     * Converts a String to a Tetris.Input, checking the user's keybinds and
+     * default keybinds.
+     * @param input The input String received by the bot.
+     * @param userId The id of the user sending an input string.
+     * @return The corresponding Tetris.Input, or null if no matching input
+     * found.
+     */
+    public static Tetris.Input stringToInput(String input, long userId) {
+        HashMap<String, Tetris.Input> user = keybinds.get(userId);
+        if (user != null) {
+            for (String key : user.keySet()) {
+                if (input.equals(key)) {
+                    return user.get(key);
                 }
             }
         }
+        input = input.toUpperCase();
+        List<Tetris.Input> inputs = new ArrayList<>(Arrays.asList(Tetris.Input.values()));
         for (int i = 0; i < input.length(); i++) {
             if (inputs.isEmpty()) {
                 return null;
@@ -311,6 +469,11 @@ public class Bot extends ListenerAdapter {
         return null;
     }
 
+    /**
+     * Finds all replays on GitHub that match the search query.
+     * @param search The string to search for in replay ids.
+     * @return A list of replay links containing the search string.
+     */
     public static List<String> getReplays(String search) {
         List<String> replays = new ArrayList<>();
         try {

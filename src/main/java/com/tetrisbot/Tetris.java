@@ -17,15 +17,6 @@ public class Tetris {
         HARDDROP, SOFTDROP, LEFT, RIGHT, CW, CCW, HOLD
     }
     static final String[] INPUT_EMOJIS = {"⏬", "⬇️", "⬅️", "➡️", "↩️", "↪️", "🔄"};
-    static final String[][] ABBREVIATIONS = {
-        {"HD"},
-        {},
-        {},
-        {},
-        {},
-        {},
-        {}
-    };
     static final int[][][] SHAPES = {
         {{-1, 0}, {0, 0}, {1, 0}, {2, 0}},
         {{-1, -1}, {-1, 0}, {0, 0}, {1, 0}},
@@ -495,6 +486,9 @@ public class Tetris {
                 spinLevel = 0;
             }
         }
+        if (queue.get(0) != Piece.T) {
+            spinLevel = 0;
+        }
         if (spinLevel == 1) {
             message = "MINI T-SPIN ";
         }
@@ -539,9 +533,6 @@ public class Tetris {
             message += "TETRIS";
             break;
             default:
-        }
-        if (queue.get(0) != Piece.T) {
-            spinLevel = 0;
         }
         if (cleared > 0) {
             combo++;

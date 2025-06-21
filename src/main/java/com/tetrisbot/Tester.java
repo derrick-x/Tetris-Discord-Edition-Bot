@@ -19,7 +19,7 @@ public class Tester extends Canvas {
     public static void main(String[] args) {
         Bot.getReplays("");
         if (true) {
-            return;
+            //return;
         }
         JFrame frame = new JFrame();
         frame.setSize(500, 520);
