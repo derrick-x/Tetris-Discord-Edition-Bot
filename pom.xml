@@ -86,7 +86,7 @@
           <configuration>
             <archive>
               <manifest>
-                <mainClass>src.main.java.com.tetrisbot.Bot.java</mainClass>
+                <mainClass>src/main/java/com/tetrisbot/Bot.java</mainClass>
               </manifest>
             </archive>
           </configuration>
