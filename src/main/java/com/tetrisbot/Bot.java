@@ -51,10 +51,10 @@ import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
  */
 
 public class Bot extends ListenerAdapter {
-    static final String token = ""; //If testing on your own, use your own bot token
-    static final long botId = 1377027446783610890L; //replace with your bot's ID
-    static final String gitToken = ""; //use your GitHub token
-    static final boolean DEBUG = false;
+    static final String DISCORD_TOKEN = System.getenv("DISCORD_TOKEN"); //If testing on your own, use your own bot token
+    static final long BOT_ID = 1377027446783610890L; //replace with your bot's ID
+    static final String GIT_TOKEN = System.getenv("GIT_TOKEN"); //use your GitHub token
+    static final boolean DEBUG = true;
     static final String HELP =
     "Tetris Bot commands:" + "\n" +
     "* " + "`start`: starts a new game in a channel." + "\n" +
@@ -130,7 +130,7 @@ public class Bot extends ListenerAdapter {
                 HttpURLConnection conn = (HttpURLConnection) new URL(apiURL).openConnection();
                 conn.setRequestMethod("PUT");
                 conn.setDoOutput(true);
-                conn.setRequestProperty("Authorization", "Bearer " + gitToken);
+                conn.setRequestProperty("Authorization", "Bearer " + GIT_TOKEN);
                 conn.setRequestProperty("Accept", "application/vnd.github+json");
                 conn.setRequestProperty("Content-Type", "application/json");
                 OutputStream os = conn.getOutputStream();
@@ -148,7 +148,7 @@ public class Bot extends ListenerAdapter {
     public static void main(String[] args) throws LoginException {
         keybinds = new HashMap<>();
         System.setProperty("java.awt.headless", "true");
-        JDABuilder.createDefault(token)
+        JDABuilder.createDefault(DISCORD_TOKEN)
             .enableIntents(GatewayIntent.MESSAGE_CONTENT)
             .enableIntents(GatewayIntent.GUILD_PRESENCES)
             .enableIntents(GatewayIntent.GUILD_MEMBERS)
@@ -321,7 +321,7 @@ public class Bot extends ListenerAdapter {
 
     @Override
     public void onMessageReactionAdd(MessageReactionAddEvent event) {
-        if (event.retrieveUser().complete().getIdLong() == botId) {
+        if (event.retrieveUser().complete().getIdLong() == BOT_ID) {
             return;
         }
         Game game = games.get(event.getChannel().getIdLong());
