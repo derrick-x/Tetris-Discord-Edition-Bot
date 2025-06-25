@@ -34,6 +34,7 @@ import org.json.JSONObject;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.unions.MessageChannelUnion;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.message.GenericMessageEvent;
@@ -54,18 +55,20 @@ public class Bot extends ListenerAdapter {
     static final String DISCORD_TOKEN = System.getenv("DISCORD_TOKEN"); //If testing on your own, use your own bot token
     static final long BOT_ID = 1377027446783610890L; //replace with your bot's ID
     static final String GIT_TOKEN = System.getenv("GIT_TOKEN"); //use your GitHub token
-    static final boolean DEBUG = true;
     static final String HELP =
-    "Tetris Bot commands:" + "\n" +
-    "* " + "`start`: starts a new game in a channel." + "\n" +
-    "* " + "`start react`: starts a new game in a channel with reaction-based inputs enabled. Note that in this mode, discussions in the channel should be minimal to avoid clutter." + "\n" +
+    "**Tetris Bot commands:**" + "\n" +
+    "* " + "`start {[flag]}`: starts a new game in a channel. Place as many flags after `start` as you would like to customize your game. (See below)" + "\n" +
     "* " + "`abort`: aborts the current game in a channel." + "\n" +
-    "* " + "`react`: if reaction-based input mode is enabled, sends a new reaction panel in front of all messages. Useful if discussions pushed the message far away." + "\n" +
+    "* " + "`react`: if reaction-based input mode is enabled, sends a new reaction panel in front of all messages. Useful if discussions pushed the reaction panel far away." + "\n" +
     "* " + "`[input]`: plays the input, if valid. You can also enter any unambiguous prefix of the input, such as `l` for LEFT or `ha` for HARDDROP."+ "\n" +
     "* " + "`[input] -`: repeats the input until it is no longer valid. Only applies to LEFT, RIGHT, and SOFTDROP."+ "\n" +
     "* " + "`keybind {[input] [keybind]}`: sets the list of input-keybind pairs as your custom keybinds. For example, `keybind ha hd ho c ccw z` sets HARDDROP to hd, HOLD to c, and CCW to z. Custom keybinds are case sensitive." + "\n" +
     "* " + "`keybind {[input] [keybind]}`: displays your current keybinds set." + "\n" +
-    "You may send a command by using the \"!tetris\" prefix or by replying to any bot message in the same channel.";
+    "**Start flags:**" + "\n" +
+    "* " + "`react`: Enables reaction-based inputs. Note that games using reactions should keep discussions in the same channel to a minimum." + "\n" +
+    "* " + "`consecutive`: Allows same user to play multiple inputs in a row. (Default is users must take turns playing inputs)" + "\n" +
+    "* " + "`replay`: Saves a replay after game ends or is aborted." + "\n" +
+    "**You may send a command by using the \"!tetris\" prefix or by replying to any bot message in the same channel.**";
     static HashMap<Long, Game> games;
     static HashMap<Long, HashMap<String, Tetris.Input>> keybinds;
 
@@ -75,8 +78,10 @@ public class Bot extends ListenerAdapter {
         long lastUserId;
         long inputPanelId;
         Message gameMessage;
+        boolean consecutive;
+        boolean replay;
         List<BufferedImage> frames;
-        public Game(String o, boolean r) {
+        public Game(String o, boolean r, boolean c, boolean rp) {
             tetris = new Tetris();
             owner = o;
             lastUserId = -1;
@@ -88,6 +93,8 @@ public class Bot extends ListenerAdapter {
                 inputPanelId = -1;
             }
             gameMessage = null;
+            consecutive = c;
+            replay = rp;
         }
 
         /**
@@ -95,9 +102,6 @@ public class Bot extends ListenerAdapter {
          * stores it in GitHub.
          */
         public String saveReplay() {
-            if (tetris.inputs.size() < 10) {
-                return "short";
-            }
             String id = owner + "-" + System.currentTimeMillis();
             File gif = new File(id + "-replay.gif");
             try {
@@ -136,6 +140,9 @@ public class Bot extends ListenerAdapter {
                 OutputStream os = conn.getOutputStream();
                 os.write(jsonPayload.getBytes(StandardCharsets.UTF_8));
                 int code = conn.getResponseCode();
+                if (code != 201) {
+                    return null;
+                }
                 System.out.println("GitHub upload response: " + code);
             } catch (IOException e) {
                 e.printStackTrace();
@@ -177,15 +184,27 @@ public class Bot extends ListenerAdapter {
         }
         if (args[0].equals("start")) {
             if (game == null) {
+                boolean[] flags = new boolean[3];
+                for (int i = 1; i < args.length; i++) {
+                    if (args[i].equals("react")) {
+                        flags[0] = true;
+                    }
+                    if (args[i].equals("consecutive")) {
+                        flags[1] = true;
+                    }
+                    if (args[i].equals("replay")) {
+                        flags[2] = true;
+                    }
+                }
                 event.getChannel().sendMessage("Starting game by " + event.getAuthor().getName() + "...").queue();
-                if (args.length > 1 && args[1].equals("react")) {
+                if (flags[0]) {
                     if (!event.getGuild().getSelfMember().hasPermission(event.getGuildChannel(), Permission.MESSAGE_MANAGE)) {
                         event.getChannel().sendMessage("WARNING: insufficient permission to remove reactions. You need to manually remove your reactions after using them.").queue();
                     }
-                    games.put(event.getChannel().getIdLong(), new Game(event.getAuthor().getName(), true));
+                    games.put(event.getChannel().getIdLong(), new Game(event.getAuthor().getName(), true, flags[1], flags[2]));
                 }
                 else {
-                    games.put(event.getChannel().getIdLong(), new Game(event.getAuthor().getName(), false));
+                    games.put(event.getChannel().getIdLong(), new Game(event.getAuthor().getName(), false, flags[1], flags[2]));
                 }
                 sendTetris(event.getChannel(), games.get(event.getChannel().getIdLong()), null, null);
             }
@@ -197,7 +216,7 @@ public class Bot extends ListenerAdapter {
             if (game == null) {
                 event.getChannel().sendMessage("No game in progress!").queue();
             }
-            else if (DEBUG || event.getAuthor().getName().equals(game.owner)) {
+            else if (event.getAuthor().getName().equals(game.owner)) {
                 saveReplay(event, game);
                 games.remove(event.getChannel().getIdLong());
                 event.getChannel().sendMessage("Game aborted").queue();
@@ -293,7 +312,7 @@ public class Bot extends ListenerAdapter {
                 event.getChannel().sendMessage("No game in progress!").queue();
             }
             else if (game.tetris.getValidMoves().contains(input)) {
-                if (DEBUG || event.getAuthor().getIdLong() != game.lastUserId) {
+                if (game.consecutive || event.getAuthor().getIdLong() != game.lastUserId) {
                     game.lastUserId = event.getAuthor().getIdLong();
                     if (args.length > 1 && input != Tetris.Input.CW && input != Tetris.Input.CCW && input != Tetris.Input.HARDDROP && args[1].equals("-")) {
                         while (game.tetris.getValidMoves().contains(input)) {
@@ -321,7 +340,8 @@ public class Bot extends ListenerAdapter {
 
     @Override
     public void onMessageReactionAdd(MessageReactionAddEvent event) {
-        if (event.retrieveUser().complete().getIdLong() == BOT_ID) {
+        User user = event.retrieveUser().complete();
+        if (user.getIdLong() == BOT_ID) {
             return;
         }
         Game game = games.get(event.getChannel().getIdLong());
@@ -330,12 +350,12 @@ public class Bot extends ListenerAdapter {
         }
         if (event.getMessageIdLong() == game.inputPanelId) {
             try {
-                event.getReaction().removeReaction().complete();
+                event.getReaction().removeReaction(user).complete();
             } catch (InsufficientPermissionException e) {}
             for (int i = 0; i < 7; i++) {
                 if (event.getEmoji().getName().equals(Tetris.INPUT_EMOJIS[i])) {
                     Tetris.Input input = Tetris.Input.values()[i];
-                    if (DEBUG || event.retrieveUser().complete().getIdLong() != game.lastUserId) {
+                    if (game.consecutive || event.retrieveUser().complete().getIdLong() != game.lastUserId) {
                         if (game.tetris.getValidMoves().contains(input)) {
                             game.lastUserId = event.retrieveUser().complete().getIdLong();
                             game.tetris.input(input);
@@ -369,7 +389,7 @@ public class Bot extends ListenerAdapter {
     public void sendTetris(MessageChannelUnion channel, Game game, String user, Tetris.Input input) {
         BufferedImage image = new BufferedImage(500, 500, BufferedImage.TYPE_INT_RGB);
         paintGame(image.getGraphics(), game.tetris, user, input);
-        game.frames.add(image);
+        //game.frames.add(image);
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ImageIO.write(image, "jpg", baos);
@@ -421,13 +441,13 @@ public class Bot extends ListenerAdapter {
      * @param game The finished game to create a replay of.
      */
     public static void saveReplay(GenericMessageEvent event, Game game) {
+        if (!game.replay) {
+            return;
+        }
         event.getChannel().sendMessage("Creating replay, please wait...").queue();
         String id = game.saveReplay();
         if (id == null) {
             event.getChannel().sendMessage("Error creating replay!").queue();
-        }
-        else if (id.equals("short")) {
-            event.getChannel().sendMessage("Replay not created: at least 10 inputs must be played to create a replay.").queue();
         }
         else {
             event.getChannel().sendMessage("Created replay with id \'" + id + "\nYou may need to open the gif in your browser for it to load.\n[Click here to download your replay](https://raw.githubusercontent.com/derrick-x/Tetris-Replays/main/replays/" + id + "-replay.gif)").queue();
