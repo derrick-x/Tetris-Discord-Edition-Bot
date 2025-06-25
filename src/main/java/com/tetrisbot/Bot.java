@@ -410,6 +410,7 @@ public class Bot extends ListenerAdapter {
             }
             message.setContent(text.toString());
             message.addFiles(FileUpload.fromData(imageBytes, "tetris.jpg"));
+            imageBytes = null;
             if (game.inputPanelId < 0) {
                 channel.sendMessage(message.build()).queue();
             }
