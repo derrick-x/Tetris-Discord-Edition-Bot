@@ -388,16 +388,19 @@ public class Bot extends ListenerAdapter {
      */
     public void sendTetris(MessageChannelUnion channel, Game game, String user, Tetris.Input input) {
         BufferedImage image = new BufferedImage(500, 500, BufferedImage.TYPE_INT_RGB);
-        paintGame(image.getGraphics(), game.tetris, user, input);
-        image.getGraphics().dispose();
+        Graphics g = image.getGraphics();
+        paintGame(g, game.tetris, user, input);
+        g.dispose();
         //game.frames.add(image);
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ImageIO.write(image, "jpg", baos);
             image.flush();
+            image = null;
             byte[] imageBytes = baos.toByteArray();
             baos.flush();
             baos.close();
+            baos = null;
             MessageCreateBuilder message = new MessageCreateBuilder();
             StringBuilder text = new StringBuilder();
             if (game.tetris.alive && game.tetris.lines < 300) {
@@ -414,6 +417,8 @@ public class Bot extends ListenerAdapter {
             }
             message.setContent(text.toString());
             message.addFiles(FileUpload.fromData(imageBytes, "tetris.jpg"));
+            imageBytes = null;
+            System.gc();
             if (game.inputPanelId < 0) {
                 channel.sendMessage(message.build()).queue();
             }
