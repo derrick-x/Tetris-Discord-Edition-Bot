@@ -67,7 +67,7 @@ public class Bot extends ListenerAdapter {
     "**Start flags:**" + "\n" +
     "* " + "`react`: Enables reaction-based inputs. Note that games using reactions should keep discussions in the same channel to a minimum." + "\n" +
     "* " + "`consecutive`: Allows same user to play multiple inputs in a row. (Default is users must take turns playing inputs)" + "\n" +
-    "* " + "`replay`: Saves a replay after game ends or is aborted. (Temporarily disabled due to memory issues)" + "\n" +
+    "* " + "`replay`: Saves a replay after game ends or is aborted." + "\n" +
     "**You may send a command by using the \"!tetris\" prefix or by replying to any bot message in the same channel.**";
     static HashMap<Long, Game> games;
     static HashMap<Long, HashMap<String, Tetris.Input>> keybinds;
@@ -79,13 +79,11 @@ public class Bot extends ListenerAdapter {
         long inputPanelId;
         Message gameMessage;
         boolean consecutive;
-        boolean replay;
-        List<BufferedImage> frames;
+        GifSequenceWriter gifWriter;
         public Game(String o, boolean r, boolean c, boolean rp) {
             tetris = new Tetris();
             owner = o;
             lastUserId = -1;
-            frames = new ArrayList<>();
             if (r){
                 inputPanelId = 0;
             }
@@ -94,7 +92,18 @@ public class Bot extends ListenerAdapter {
             }
             gameMessage = null;
             consecutive = c;
-            replay = rp;
+            if (rp) {
+                try {
+                    File gif = new File(o + "-replay.gif");
+                    FileImageOutputStream output = new FileImageOutputStream(gif);
+                    gifWriter = new GifSequenceWriter(output, BufferedImage.TYPE_INT_RGB, 500, true);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+            else {
+                gifWriter = null;
+            }
         }
 
         /**
@@ -104,18 +113,6 @@ public class Bot extends ListenerAdapter {
         public String saveReplay() {
             String id = owner + "-" + System.currentTimeMillis();
             File gif = new File(id + "-replay.gif");
-            try {
-                FileImageOutputStream output = new FileImageOutputStream(gif);
-                GifSequenceWriter writer = new GifSequenceWriter(output, BufferedImage.TYPE_INT_RGB, 500, true);
-                for (int i = 0; i < frames.size(); i++) {
-                    writer.writeToSequence(frames.get(i));
-                }
-                output.close();
-            }
-            catch (IOException e) {
-                e.printStackTrace();
-                return null;
-            }
             String apiURL = "https://api.github.com/repos/derrick-x/Tetris-Replays/contents/replays/" + id + "-replay.gif";
             byte[] fileBytes = new byte[(int) gif.length()];
             try (FileInputStream inputStream = new FileInputStream(gif)) {
@@ -391,7 +388,13 @@ public class Bot extends ListenerAdapter {
         Graphics g = image.getGraphics();
         paintGame(g, game.tetris, user, input);
         g.dispose();
-        //game.frames.add(image);
+        if (game.gifWriter != null) {
+            try {
+                game.gifWriter.writeToSequence(image);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ImageIO.write(image, "jpg", baos);
@@ -450,7 +453,7 @@ public class Bot extends ListenerAdapter {
      * @param game The finished game to create a replay of.
      */
     public static void saveReplay(GenericMessageEvent event, Game game) {
-        if (true || !game.replay) {
+        if (game.gifWriter == null) {
             return;
         }
         event.getChannel().sendMessage("Creating replay, please wait...").queue();
