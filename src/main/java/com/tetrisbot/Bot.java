@@ -118,6 +118,7 @@ public class Bot extends ListenerAdapter {
             byte[] fileBytes = new byte[(int) gif.length()];
             try (FileInputStream inputStream = new FileInputStream(gif)) {
                 inputStream.read(fileBytes);
+                gifWriter.close();
             }
             catch (IOException e) {
                 e.printStackTrace();
@@ -146,6 +147,7 @@ public class Bot extends ListenerAdapter {
                 e.printStackTrace();
             }
             gif.delete();
+            gif = null;
             return gifId;
         }
     }
