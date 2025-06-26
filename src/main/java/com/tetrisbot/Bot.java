@@ -94,7 +94,8 @@ public class Bot extends ListenerAdapter {
             consecutive = c;
             if (rp) {
                 try {
-                    File gif = new File(o + "-replay.gif");
+                    String id = owner + "-" + System.currentTimeMillis();
+                    File gif = new File(id + "-replay.gif");
                     FileImageOutputStream output = new FileImageOutputStream(gif);
                     gifWriter = new GifSequenceWriter(output, BufferedImage.TYPE_INT_RGB, 500, true);
                 } catch (IOException e) {
