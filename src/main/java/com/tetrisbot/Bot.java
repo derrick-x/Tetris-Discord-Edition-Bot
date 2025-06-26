@@ -64,7 +64,7 @@ public class Bot extends ListenerAdapter {
     "* " + "`[input] -`: repeats the input until it is no longer valid. Only applies to LEFT, RIGHT, and SOFTDROP."+ "\n" +
     "* " + "`keybind {[input] [keybind]}`: sets the list of input-keybind pairs as your custom keybinds. For example, `keybind ha hd ho c ccw z` sets HARDDROP to hd, HOLD to c, and CCW to z. Custom keybinds are case sensitive." + "\n" +
     "* " + "`keybind {[input] [keybind]}`: displays your current keybinds set." + "\n" +
-    "**Start flags:**" + "\n" +
+    "**Start flags:** (Cannot be toggled after a game starts)" + "\n" +
     "* " + "`react`: Enables reaction-based inputs. Note that games using reactions should keep discussions in the same channel to a minimum." + "\n" +
     "* " + "`consecutive`: Allows same user to play multiple inputs in a row. (Default is users must take turns playing inputs)" + "\n" +
     "* " + "`replay`: Saves a replay after game ends or is aborted." + "\n" +
@@ -79,6 +79,8 @@ public class Bot extends ListenerAdapter {
         long inputPanelId;
         Message gameMessage;
         boolean consecutive;
+        File gif;
+        String gifId;
         GifSequenceWriter gifWriter;
         public Game(String o, boolean r, boolean c, boolean rp) {
             tetris = new Tetris();
@@ -94,8 +96,8 @@ public class Bot extends ListenerAdapter {
             consecutive = c;
             if (rp) {
                 try {
-                    String id = owner + "-" + System.currentTimeMillis();
-                    File gif = new File(id + "-replay.gif");
+                    gifId = owner + "-" + System.currentTimeMillis();
+                    gif = new File(gifId + "-replay.gif");
                     FileImageOutputStream output = new FileImageOutputStream(gif);
                     gifWriter = new GifSequenceWriter(output, BufferedImage.TYPE_INT_RGB, 500, true);
                 } catch (IOException e) {
@@ -112,9 +114,7 @@ public class Bot extends ListenerAdapter {
          * stores it in GitHub.
          */
         public String saveReplay() {
-            String id = owner + "-" + System.currentTimeMillis();
-            File gif = new File(id + "-replay.gif");
-            String apiURL = "https://api.github.com/repos/derrick-x/Tetris-Replays/contents/replays/" + id + "-replay.gif";
+            String apiURL = "https://api.github.com/repos/derrick-x/Tetris-Replays/contents/replays/" + gifId + "-replay.gif";
             byte[] fileBytes = new byte[(int) gif.length()];
             try (FileInputStream inputStream = new FileInputStream(gif)) {
                 inputStream.read(fileBytes);
@@ -138,15 +138,15 @@ public class Bot extends ListenerAdapter {
                 OutputStream os = conn.getOutputStream();
                 os.write(jsonPayload.getBytes(StandardCharsets.UTF_8));
                 int code = conn.getResponseCode();
+                System.out.println("GitHub upload response: " + code);
                 if (code != 201) {
                     return null;
                 }
-                System.out.println("GitHub upload response: " + code);
             } catch (IOException e) {
                 e.printStackTrace();
             }
             gif.delete();
-            return id;
+            return gifId;
         }
     }
     
@@ -385,7 +385,7 @@ public class Bot extends ListenerAdapter {
      * @param game The Tetris.java instance in to display.
      */
     public void sendTetris(MessageChannelUnion channel, Game game, String user, Tetris.Input input) {
-        BufferedImage image = new BufferedImage(500, 500, BufferedImage.TYPE_INT_RGB);
+        BufferedImage image = new BufferedImage(300, 300, BufferedImage.TYPE_INT_RGB);
         Graphics g = image.getGraphics();
         paintGame(g, game.tetris, user, input);
         g.dispose();
@@ -547,68 +547,68 @@ public class Bot extends ListenerAdapter {
      */
     public static void paintGame(Graphics g, Tetris game, String user, Tetris.Input input) {
         Graphics2D g2d = (Graphics2D) g;
-        g2d.setStroke(new BasicStroke(3));
+        g2d.setStroke(new BasicStroke(2));
         g2d.setColor(Color.BLACK);
-        g2d.fillRect(0, 0, 500, 500);
+        g2d.fillRect(0, 0, 300, 300);
         g2d.setColor(Color.WHITE);
-        g2d.drawRect(150, 50, 200, 400);
+        g2d.drawRect(90, 30, 120, 240);
         for (int y = 0; y < 20; y++) {
             for (int x = 0; x < 10; x++) {
                 g2d.setColor(new Color(Tetris.getColor(game.board[y][x], false)));
-                g2d.fillRect(x * 20 + 150, y * 20 + 50, 20, 20);
+                g2d.fillRect(x * 12 + 90, y * 12 + 30, 12, 12);
             }
         }
         int[][] shape = game.getShadow();
         g2d.setColor(Color.GRAY);
         for (int i = 0; i < 4; i++) {
-            g2d.fillRect(shape[i][0] * 20 + 150, shape[i][1] * 20 + 50, 20, 20);
+            g2d.fillRect(shape[i][0] * 12 + 90, shape[i][1] * 12 + 30, 12, 12);
         }
         shape = Tetris.getShape(game.queue.get(0), game.rotation);
         g2d.setColor(new Color(Tetris.getColor(game.queue.get(0), true)));
         for (int i = 0; i < 4; i++) {
-            g2d.fillRect((shape[i][0] + game.position[0]) * 20 + 150, (shape[i][1] + game.position[1]) * 20 + 50, 20, 20);
+            g2d.fillRect((shape[i][0] + game.position[0]) * 12 + 90, (shape[i][1] + game.position[1]) * 12 + 30, 12, 12);
         }
         for (int i = 1; i <= 3; i++) {
             shape = Tetris.getShape(game.queue.get(i), 0);
             g2d.setColor(new Color(Tetris.getColor(game.queue.get(i), false)));
             for (int j = 0; j < 4; j++) {
-                g2d.fillRect(shape[j][0] * 20 + 410, shape[j][1] * 20 + 50 + 60 * i, 20, 20);
+                g2d.fillRect(shape[j][0] * 12 + 246, shape[j][1] * 12 + 30 + 36 * i, 12, 12);
             }
         }
         g2d.setColor(Color.WHITE);
-        g2d.drawRect(370, 70, 120, 200);
-        g2d.setFont(new Font("Arial", Font.PLAIN, 15));
-        g2d.drawString("NEXT", 370, 60);
+        g2d.drawRect(222, 42, 72, 120);
+        g2d.setFont(new Font("Arial", Font.PLAIN, 9));
+        g2d.drawString("NEXT", 222, 36);
         if (game.hold != Tetris.Piece.EMPTY) {
             shape = Tetris.getShape(game.hold, 0);
             g2d.setColor(new Color(Tetris.getColor(game.hold, false)));
             for (int i = 0; i < 4; i++) {
-                g2d.fillRect(shape[i][0] * 20 + 60, shape[i][1] * 20 + 110, 20, 20);
+                g2d.fillRect(shape[i][0] * 12 + 36, shape[i][1] * 12 + 66, 12, 12);
             }
         }
         g2d.setColor(Color.WHITE);
-        g2d.drawRect(20, 70, 120, 80);
-        g2d.drawString("HOLD", 20, 60);
-        g2d.setStroke(new BasicStroke(1));
+        g2d.drawRect(12, 42, 72, 48);
+        g2d.drawString("HOLD", 12, 36);
+        g2d.setStroke(new BasicStroke(0.5f));
         g2d.setColor(Color.DARK_GRAY);
         for (int y = 1; y < 20; y++) {
-            g2d.drawLine(150, y * 20 + 50, 350, y * 20 + 50);
+            g2d.drawLine(90, y * 12 + 30, 210, y * 12 + 30);
         }
         for (int x = 1; x < 10; x++) {
-            g2d.drawLine(150 + x * 20, 50, 150 + x * 20, 450);
+            g2d.drawLine(90 + x * 12, 30, 90 + x * 12, 270);
         }
-        g2d.setFont(new Font("Arial", Font.PLAIN, 30));
+        g2d.setFont(new Font("Arial", Font.PLAIN, 18));
         g2d.setColor(Color.WHITE);
         if (user != null) {
-            g2d.drawString(user + " played " + input, 10, 30);
+            g2d.drawString(user + " played " + input, 6, 18);
         }
-        g2d.drawString("Score", 10, 200);
-        g2d.drawString(game.score + "", 10, 230);
-        g.drawString("Level", 10, 280);
-        g2d.drawString((game.lines / 10 + 1) + "", 10, 310);
-        g2d.drawString("Lines", 10, 360);
-        g2d.drawString(game.lines + "", 10, 390);
-        g2d.setFont(new Font("Arial", Font.PLAIN, 15));
-        g2d.drawString(game.message, 10, 480);
+        g2d.drawString("Score", 6, 120);
+        g2d.drawString(game.score + "", 6, 138);
+        g.drawString("Level", 6, 168);
+        g2d.drawString((game.lines / 10 + 1) + "", 6, 186);
+        g2d.drawString("Lines", 6, 216);
+        g2d.drawString(game.lines + "", 6, 234);
+        g2d.setFont(new Font("Arial", Font.PLAIN, 9));
+        g2d.drawString(game.message, 6, 288);
     }
 }
