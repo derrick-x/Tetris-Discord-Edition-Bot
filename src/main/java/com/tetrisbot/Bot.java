@@ -67,7 +67,7 @@ public class Bot extends ListenerAdapter {
     "**Start flags:**" + "\n" +
     "* " + "`react`: Enables reaction-based inputs. Note that games using reactions should keep discussions in the same channel to a minimum." + "\n" +
     "* " + "`consecutive`: Allows same user to play multiple inputs in a row. (Default is users must take turns playing inputs)" + "\n" +
-    "* " + "`replay`: Saves a replay after game ends or is aborted." + "\n" +
+    "* " + "`replay`: Saves a replay after game ends or is aborted. (Temporarily disabled due to memory issues)" + "\n" +
     "**You may send a command by using the \"!tetris\" prefix or by replying to any bot message in the same channel.**";
     static HashMap<Long, Game> games;
     static HashMap<Long, HashMap<String, Tetris.Input>> keybinds;
@@ -442,7 +442,7 @@ public class Bot extends ListenerAdapter {
      * @param game The finished game to create a replay of.
      */
     public static void saveReplay(GenericMessageEvent event, Game game) {
-        if (!game.replay) {
+        if (true || !game.replay) {
             return;
         }
         event.getChannel().sendMessage("Creating replay, please wait...").queue();
