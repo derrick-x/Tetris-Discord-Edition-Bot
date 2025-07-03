@@ -277,14 +277,15 @@ public class Tetris {
     String message; //Any message to display, such as the type of line cleared
     int spinLevel; //Whether the last successful move was a rotation
     int lowest; //Lowest y position ever reached, used for instant lock condition
+    int preview; //Number of pieces in the preview queue
     boolean alive;
     //Add instance variables here as necessary
 
-    public Tetris() {
+    public Tetris(int p) {
         score = 0;
         combo = -1;
         b2b = -1;
-        lines = 190;
+        lines = 0;
         fullQueue = new ArrayList<>(sevenBag());
         queue = new LinkedList<>(fullQueue);
         board = new Piece[20][10];
@@ -304,14 +305,7 @@ public class Tetris {
         spinLevel = 0;
         lowest = 1;
         alive = true;
-    }
-    public Tetris(String sequence) { //Construct a Tetris game for replays
-        this();
-        fullQueue.clear();
-        for (int i = 0; i < sequence.length(); i++) {
-            fullQueue.add(Piece.valueOf(sequence.substring(i, i + 1)));
-        }
-        queue = new LinkedList<>(fullQueue);
+        preview = p;
     }
 
     /**
@@ -320,7 +314,8 @@ public class Tetris {
      * @param input An integer representing the input as mapped in the Input
      * enum.
      */
-    public void input(Input input) {
+    public boolean input(Input input) {
+        boolean placed = false;
         List<Input> validMoves = getValidMoves();
         switch (input) {
             case HARDDROP: {
@@ -413,7 +408,9 @@ public class Tetris {
         }
         if (inputCount >= 15 && !validMoves.contains(Input.SOFTDROP)) {
             place();
+            return true;
         }
+        return input == Input.HARDDROP;
     }
 
     /**
@@ -645,7 +642,7 @@ public class Tetris {
                 alive = false;
             }
         }
-        if (queue.size() < 5) {
+        if (queue.size() < preview + 2) {
             List<Piece> newBag = sevenBag();
             for (int i = 0; i < 7; i++) {
                 fullQueue.add(newBag.get(i));
