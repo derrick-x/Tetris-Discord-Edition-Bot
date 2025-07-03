@@ -284,7 +284,7 @@ public class Tetris {
         score = 0;
         combo = -1;
         b2b = -1;
-        lines = 0;
+        lines = 190;
         fullQueue = new ArrayList<>(sevenBag());
         queue = new LinkedList<>(fullQueue);
         board = new Piece[20][10];
@@ -360,7 +360,6 @@ public class Tetris {
             } break;
             case CW: {
                 if (validMoves.contains(Input.CW)) {
-                    grav20();
                     if (queue.peek() != Piece.O) {
                         int[] kick = srs(board, overflow, queue.peek(), position, rotation, true);
                         position[0] += kick[0];
@@ -374,11 +373,11 @@ public class Tetris {
                     }
                     inputCount++;
                     inputs.add(Input.CW);
+                    grav20();
                 }
             } break;
             case CCW: {
                 if (validMoves.contains(Input.CCW)) {
-                    grav20();
                     if (queue.peek() != Piece.O) {
                         int[] kick = srs(board, overflow, queue.peek(), position, rotation, false);
                         position[0] += kick[0];
@@ -392,6 +391,7 @@ public class Tetris {
                     }
                     inputCount++;
                     inputs.add(Input.CCW);
+                    grav20();
                 }
             } break;
             case HOLD: {

@@ -631,7 +631,7 @@ public class Bot extends ListenerAdapter {
         g2d.drawString("Score", 6, 120);
         g2d.drawString(game.score + "", 6, 138);
         g.drawString("Level", 6, 168);
-        g2d.drawString((game.lines / 10 + 1) + "", 6, 186);
+        g2d.drawString(Math.max(30, (game.lines / 10 + 1)) + "", 6, 186);
         g2d.drawString("Lines", 6, 216);
         g2d.drawString(game.lines + "", 6, 234);
         g2d.setFont(new Font("Arial", Font.PLAIN, 9));

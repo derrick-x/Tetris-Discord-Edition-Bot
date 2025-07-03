@@ -17,7 +17,6 @@ import javax.swing.JFrame;
 public class Tester extends Canvas {
     static Tetris tetris;
     public static void main(String[] args) {
-        Bot.getReplays("");
         if (true) {
             //return;
         }
