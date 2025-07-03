@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -44,6 +45,8 @@ import net.dv8tion.jda.api.exceptions.InsufficientPermissionException;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.FileUpload;
+import net.dv8tion.jda.api.utils.MemberCachePolicy;
+import net.dv8tion.jda.api.utils.cache.CacheFlag;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 
 /**
@@ -53,8 +56,14 @@ import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 
 public class Bot extends ListenerAdapter {
     static final String DISCORD_TOKEN = System.getenv("DISCORD_TOKEN"); //If testing on your own, use your own bot token
-    static final long BOT_ID = 1377027446783610890L; //replace with your bot's ID
+    static final long BOT_ID = 1387542197879963648L;//1377027446783610890L; //replace with your bot's ID
     static final String GIT_TOKEN = System.getenv("GIT_TOKEN"); //use your GitHub token
+    static final String VERSION = 
+    "# v0.9.4: Reaction Inputs and Custom Keybinds" + "\n" +
+    "- Added setting to use emoji reactions to send inputs\n" +
+    "- Custom keybinds can now be set for each user\n" +
+    "- Fixed a bug where T-SPIN would be announced for any spin\n" +
+    "- Minor messaging improvements";
     static final String HELP =
     "**Tetris Bot commands:**" + "\n" +
     "* " + "`start {[flag]}`: starts a new game in a channel. Place as many flags after `start` as you would like to customize your game. (See below)" + "\n" +
@@ -69,6 +78,7 @@ public class Bot extends ListenerAdapter {
     "* " + "`consecutive`: Allows same user to play multiple inputs in a row. (Default is users must take turns playing inputs)" + "\n" +
     "* " + "`replay`: Saves a replay after game ends or is aborted." + "\n" +
     "**You may send a command by using the \"!tetris\" prefix or by replying to any bot message in the same channel.**";
+    static HashSet<Long> menus;
     static HashMap<Long, Game> games;
     static HashMap<Long, HashMap<String, Tetris.Input>> keybinds;
 
@@ -157,8 +167,15 @@ public class Bot extends ListenerAdapter {
         System.setProperty("java.awt.headless", "true");
         JDABuilder.createDefault(DISCORD_TOKEN)
             .enableIntents(GatewayIntent.MESSAGE_CONTENT)
-            .enableIntents(GatewayIntent.GUILD_PRESENCES)
             .enableIntents(GatewayIntent.GUILD_MEMBERS)
+            .setMemberCachePolicy(MemberCachePolicy.NONE)
+            .disableCache(
+                CacheFlag.CLIENT_STATUS,
+                CacheFlag.ACTIVITY,
+                CacheFlag.EMOJI,
+                CacheFlag.VOICE_STATE,
+                CacheFlag.ONLINE_STATUS
+            )
             .addEventListeners(new Bot())
             .build();
         games = new HashMap<>();
@@ -302,6 +319,9 @@ public class Bot extends ListenerAdapter {
                     });
                 }
             }
+        }
+        if (args[0].equals("version")) {
+            event.getChannel().sendMessage(VERSION).queue();
         }
         if (args[0].equals("help")) {
             event.getChannel().sendMessage(HELP).queue();
@@ -528,9 +548,13 @@ public class Bot extends ListenerAdapter {
                 JSONObject file = files.getJSONObject(i);
                 String name = file.getString("name");
                 String replayURL = file.getString("download_url");
-                long time = Long.parseLong(name.split("-")[1]);
                 if (name.contains(search)) {
-                    replays.add("[" + name.substring(0, name.length() - 11) + "](<" + replayURL + ">): " + new Date(time).toString());
+                    try {
+                        long time = Long.parseLong(name.split("-")[1]);
+                        replays.add("[" + name.substring(0, name.length() - 11) + "](<" + replayURL + ">): " + new Date(time).toString());
+                    } catch (IllegalArgumentException e) {
+                        replays.add("[" + name.substring(0, name.length() - 11) + "](<" + replayURL + ">): [No timestamp]");
+                    }
                 }
             }
             return replays;
