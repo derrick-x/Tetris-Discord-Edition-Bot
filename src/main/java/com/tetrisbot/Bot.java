@@ -21,7 +21,10 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import javax.imageio.ImageIO;
@@ -58,8 +61,18 @@ public class Bot extends ListenerAdapter {
     static final long BOT_ID = 1377027446783610890L; //replace with your bot's ID
     static final String GIT_TOKEN = System.getenv("GIT_TOKEN"); //use your GitHub token
     static final String VERSION = 
-    "# v1.0.0: Tetris Discord Edition Bot: Full Release" + "\n" +
-    "- TBA";
+    "# v1.0.0: Tetris Discord Edition Bot: Full Release" +
+    "\n- Our bot is now hosted on Railway! It will now always be online to use." +
+    "\n- Revamped the game start process with a start menu. Quickstart is still possible." +
+    "\n- Replays are once again on by default." +
+    "\n- New option for player switching rules: switch after every piece." +
+    "\n- Game can now be customized to have 0-5 pieces in preview (default is still 3)." +
+    "\n- You can now view the current version of the game." +
+    "\n- Long replays are now split into smaller pieces to avoid file size limits on Discord." +
+    "\n- Users with the Manage Messages permission are now able to abort a game." +
+    "\n- All channels where the bot is present will be notified once in advance when the bot is shutting down." +
+    "\n- Type command `help` to see all the commands!" +
+    "\n- Fixed some bugs.";
     static final String HELP =
     "**Tetris Bot commands:**" + "\n" +
     "* " + "`start {code}`: Enters the start menu for a new game in a channel. To quickstart, place the code of the desired config, generated from the start menu. 0 is default." + "\n" +
@@ -78,6 +91,8 @@ public class Bot extends ListenerAdapter {
     static HashMap<Long, int[]> menus;
     static HashMap<Long, Game> games;
     static HashMap<Long, HashMap<String, Tetris.Input>> keybinds;
+    static long shutdown;
+    static HashSet<Long> broadcasted;
 
     static class Game {
         Tetris tetris;
@@ -183,10 +198,21 @@ public class Bot extends ListenerAdapter {
             .build();
         games = new HashMap<>();
         menus = new HashMap<>();
+        shutdown = -1;
+        broadcasted = new HashSet<>();
     }
 
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {
+        if (event.getAuthor().getIdLong() == 722202264055447643L) {
+            if (event.getMessage().getContentRaw().equals("!tetris shutdown")) {
+                shutdown = System.currentTimeMillis() + 3600000;
+                ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+                scheduler.schedule(() -> {
+                    System.exit(0);
+                }, 2, TimeUnit.MINUTES);
+            }
+        }
         if (event.getMember() == null || event.getAuthor().isBot()) {
             return;
         }
@@ -197,6 +223,12 @@ public class Bot extends ListenerAdapter {
             args = event.getMessage().getContentRaw().substring(8).split(" ");
         } else {
             return;
+        }
+        if (shutdown > 0 && !broadcasted.contains(event.getChannel().getIdLong())) {
+            long minutes = (shutdown - System.currentTimeMillis()) / 60000;
+            long seconds = ((shutdown - System.currentTimeMillis()) % 60000) / 1000;
+            event.getChannel().sendMessage("ATTENTION: Tetris Bot will be shutting down in " + minutes + "m " + seconds + "s for a maintenance break!").queue();
+            broadcasted.add(event.getChannel().getIdLong());
         }
         Game game = games.get(event.getChannel().getIdLong());
         if (args[0].length() == 0) {
@@ -371,6 +403,7 @@ public class Bot extends ListenerAdapter {
         }
         int[] flags = menus.get(event.getMessageIdLong());
         if (flags != null) {
+            boolean remove = true;
             switch (event.getEmoji().getName()) {
                 case "🔼":
                 flags[FLAGS.length] += FLAGS.length - 1;
@@ -408,6 +441,12 @@ public class Bot extends ListenerAdapter {
                 menus.remove(event.getMessageIdLong());
                 break;
                 default:
+                remove = false;
+            }
+            if (remove) {
+                try {
+                    event.getReaction().removeReaction(user).complete();
+                } catch (InsufficientPermissionException e) {}
             }
             event.retrieveMessage().complete().editMessage(startMenu(flags)).queue();
             return;
