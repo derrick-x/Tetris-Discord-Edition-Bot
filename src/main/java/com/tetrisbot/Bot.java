@@ -8,8 +8,6 @@ import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -28,7 +26,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import javax.imageio.ImageIO;
-import javax.imageio.stream.FileImageOutputStream;
 import javax.security.auth.login.LoginException;
 
 import org.json.JSONArray;
@@ -72,7 +69,10 @@ public class Bot extends ListenerAdapter {
     "\n- Users with the Manage Messages permission are now able to abort a game." +
     "\n- All channels where the bot is present will be notified once in advance when the bot is shutting down." +
     "\n- Type command `help` to see all the commands!" +
-    "\n- Fixed some bugs.";
+    "\n- Fixed some bugs." +
+    "\n## v1.0.1" + 
+    "\n- Fixed some bugs." +
+    "\n- Unfortunately, saving replays as GIFs caused too many issues. Replays are now viewable on this website: https://tetris-bot-replays.web.app/";
     static final String HELP =
     "**Tetris Bot commands:**" + "\n" +
     "* " + "`start {code}`: Enters the start menu for a new game in a channel. To quickstart, place the code of the desired config, generated from the start menu. 0 is default." + "\n" +
@@ -101,10 +101,8 @@ public class Bot extends ListenerAdapter {
         long inputPanelId;
         Message gameMessage;
         int consecutive;
-        List<File> gifs;
-        String gifId;
-        List<GifSequenceWriter> gifWriters;
         int frames;
+        StringBuilder replay;
         public Game(String o, int[] flags) {
             tetris = new Tetris((flags[2] + 3) % 6);
             owner = o;
@@ -115,67 +113,90 @@ public class Bot extends ListenerAdapter {
             else {
                 inputPanelId = -1;
             }
-            gifs = new ArrayList<>();
-            gifWriters = new ArrayList<>();
             gameMessage = null;
             consecutive = flags[1];
-            gifId = owner + "-" + System.currentTimeMillis();
-            frames = 0;
+            frames = -1;
+            replay = new StringBuilder();
+            replay.append(tetris.preview);
         }
 
         /**
-         * Converts the piece and input sequence of a game into a replay and
+         * Converts the game sequence of a game into a replay and
          * stores it in GitHub.
          */
         public String saveReplay() {
-            for (int i = 0; i < gifs.size(); i++) {
-                String apiURL = "https://api.github.com/repos/derrick-x/Tetris-Replays/contents/replays/" + gifId + "/pt" + (i + 1) + "-replay.gif";
-                byte[] fileBytes = new byte[(int) gifs.get(i).length()];
-                try (FileInputStream inputStream = new FileInputStream(gifs.get(i))) {
-                    inputStream.read(fileBytes);
-                    gifWriters.get(i).close();
-                }
-                catch (IOException e) {
-                    e.printStackTrace();
+            String replayId = owner + "/" + System.currentTimeMillis();
+            String apiURL = "https://api.github.com/repos/derrick-x/Tetris-Replays/contents/replays/" + replayId + "-replay.txt";
+            String jsonPayload = "{"
+                + "\"message\": \"Upload Tetris replay\","
+                + "\"content\": \"" + Base64.getEncoder().encodeToString(replay.toString().getBytes()) + "\""
+                + "}";
+            try {
+                HttpURLConnection conn = (HttpURLConnection) new URL(apiURL).openConnection();
+                conn.setRequestMethod("PUT");
+                conn.setDoOutput(true);
+                conn.setRequestProperty("Authorization", "Bearer " + GIT_TOKEN);
+                conn.setRequestProperty("Accept", "application/vnd.github+json");
+                conn.setRequestProperty("Content-Type", "application/json");
+                OutputStream os = conn.getOutputStream();
+                os.write(jsonPayload.getBytes(StandardCharsets.UTF_8));
+                int code = conn.getResponseCode();
+                System.out.println("GitHub upload response: " + code);
+                if (code != 201) {
                     return null;
                 }
-                String encodedContent = Base64.getEncoder().encodeToString(fileBytes);
-                String jsonPayload = "{"
-                    + "\"message\": \"Upload Tetris replay\","
-                    + "\"content\": \"" + encodedContent + "\""
-                    + "}";
-                try {
-                    HttpURLConnection conn = (HttpURLConnection) new URL(apiURL).openConnection();
-                    conn.setRequestMethod("PUT");
-                    conn.setDoOutput(true);
-                    conn.setRequestProperty("Authorization", "Bearer " + GIT_TOKEN);
-                    conn.setRequestProperty("Accept", "application/vnd.github+json");
-                    conn.setRequestProperty("Content-Type", "application/json");
-                    OutputStream os = conn.getOutputStream();
-                    os.write(jsonPayload.getBytes(StandardCharsets.UTF_8));
-                    int code = conn.getResponseCode();
-                    System.out.println("GitHub upload response: " + code);
-                    if (code != 201) {
-                        return null;
-                    }
-                    gifs.get(i).delete();
-                    gifs.set(i, null);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+            } catch (IOException e) {
+                e.printStackTrace();
+                return null;
             }
-            gifs.clear();
-            return gifId;
+            return replayId;
         }
         
-        public void addFrame(BufferedImage image) throws IOException {
-            if (frames % 1000 == 0) {
-                File gif = new File("pt" + (frames / 1000 + 1) + "-replay.gif");
-                gifs.add(gif);
-                FileImageOutputStream output = new FileImageOutputStream(gif);
-                gifWriters.add(new GifSequenceWriter(output, BufferedImage.TYPE_INT_RGB, 500, false));
+        /**
+         * Adds a frame to the current game's replay file.
+         * @param image The frame to add.
+         * @throws IOException
+         */
+        public void addFrame(String user, Tetris.Input input) {
+            replay.append("\n");
+            int[][] shape = new int[4][2];
+            for (int i = 0; i < 4; i++) {
+                shape[i][0] = Tetris.SHAPES[tetris.queue.get(0).ordinal()][i][0] + tetris.position[0];
+                shape[i][1] = Tetris.SHAPES[tetris.queue.get(0).ordinal()][i][1] + tetris.position[1];
             }
-            gifWriters.get(gifWriters.size() - 1).writeToSequence(image);
+            int[][] shadow = tetris.getShadow();
+            for (int y = 0; y < 20; y++) {
+                for (int x = 0; x < 10; x += 2) {
+                    int tile1 = tetris.board[y][x].ordinal();
+                    int tile2 = tetris.board[y][x + 1].ordinal();
+                    for (int i = 0; i < 4; i++) {
+                        if (x == shadow[i][0] && y == shadow[i][1]) {
+                            tile1 = 8;
+                        }
+                        if (x + 1 == shadow[i][0] && y == shadow[i][1]) {
+                            tile2 = 8;
+                        }
+                    }
+                    for (int i = 0; i < 4; i++) {
+                        if (x == shape[i][0] && y == shape[i][1]) {
+                            tile1 = tetris.queue.get(0).ordinal();
+                        }
+                        if (x + 1 == shape[i][0] && y == shape[i][1]) {
+                            tile2 = tetris.queue.get(0).ordinal();
+                        }
+                    }
+                    replay.append((char) (tile1 * 9 + tile2 + 33));
+                }
+            }
+            for (int i = 1; i <= tetris.preview; i++) {
+                replay.append((char) (tetris.queue.get(i).ordinal() + 33));
+            }
+            replay.append((char) (tetris.hold.ordinal() + 33));
+            replay.append("~").append(tetris.score).append("~").append(tetris.lines).append("~").append(tetris.message).append("~");
+            if (input != null) {
+                replay.append(input.ordinal());
+                replay.append(user);
+            }
             frames++;
         }
     }
@@ -374,7 +395,7 @@ public class Bot extends ListenerAdapter {
                         }
                     }
                     else {
-                        placed |= game.tetris.input(input);
+                        placed = game.tetris.input(input);
                     }
                     if (placed || game.consecutive == 0) {
                         game.lastUserId = event.getAuthor().getIdLong();
@@ -464,8 +485,11 @@ public class Bot extends ListenerAdapter {
                     Tetris.Input input = Tetris.Input.values()[i];
                     if (game.consecutive == 2 || event.retrieveUser().complete().getIdLong() != game.lastUserId) {
                         if (game.tetris.getValidMoves().contains(input)) {
-                            game.lastUserId = event.retrieveUser().complete().getIdLong();
-                            game.tetris.input(input);
+                            boolean placed = false;
+                            placed = game.tetris.input(input);
+                            if (placed || game.consecutive == 0) {
+                                game.lastUserId = event.getUserIdLong();
+                            }
                             sendTetris(event.getChannel(), game, event.retrieveMember().complete().getEffectiveName(), input);
                             if (game.tetris.lines >= 300 || !game.tetris.alive) {
                                 saveReplay(event, game);
@@ -499,7 +523,7 @@ public class Bot extends ListenerAdapter {
         paintGame(g, game.tetris, user, input);
         g.dispose();
         try {
-            game.addFrame(image);
+            game.addFrame(user, input);
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ImageIO.write(image, "jpg", baos);
             image.flush();
@@ -524,7 +548,6 @@ public class Bot extends ListenerAdapter {
             }
             message.setContent(text.toString());
             message.addFiles(FileUpload.fromData(imageBytes, "tetris.jpg"));
-            imageBytes = null;
             System.gc();
             if (game.inputPanelId < 0) {
                 channel.sendMessage(message.build()).queue();
@@ -567,10 +590,16 @@ public class Bot extends ListenerAdapter {
             event.getChannel().sendMessage("Error creating replay!").queue();
         }
         else {
-            event.getChannel().sendMessage("Created replay with id \'" + id + "\nYou may need to open the gif in your browser for it to load.\n[Click here to download your replay](<https://github.com/derrick-x/Tetris-Replays/tree/main/replays/" + id + ">)").queue();
+            event.getChannel().sendMessage("Created replay with id \'" + id + "\nReplay can be viewed at https://tetris-bot-replays.web.app").queue();
         }
     }
 
+    /**
+     * Creates the text display for the start menu with given flag values.
+     * @param flags The flag values to display.
+     * @return A string that can be sent to Discord representing the start
+     * menu.
+     */
     public static String startMenu(int[] flags) {
         StringBuilder menu = new StringBuilder();
         menu.append("**START MENU**");

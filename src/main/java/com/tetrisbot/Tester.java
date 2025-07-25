@@ -12,8 +12,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -26,6 +28,10 @@ import javax.swing.JFrame;
 public class Tester extends Canvas {
     static Tetris tetris;
     public static void main(String[] args) throws IOException {
+        ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
+        buffer.putLong(System.currentTimeMillis());
+        System.out.println(Base64.getEncoder().encodeToString(buffer.array()));
+        System.exit(0);
         File f1 = new File("test1.txt");
         File f2 = new File("test2.txt");
         String file1 = "test1.txt";
