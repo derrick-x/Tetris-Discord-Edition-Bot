@@ -550,8 +550,8 @@ public class Bot extends ListenerAdapter {
             if (remove) {
                 try {
                     event.getReaction().removeReaction(user).complete();
-                    event.retrieveMessage().complete().editMessage(startMenu(flags)).queue();
                 } catch (InsufficientPermissionException e) {}
+                event.retrieveMessage().complete().editMessage(startMenu(flags)).queue();
             }
             return;
         }
@@ -636,7 +636,7 @@ public class Bot extends ListenerAdapter {
             event.getChannel().sendMessage("Error creating replay!").queue();
         }
         else {
-            if (!leaderboard.containsKey(event.getChannel().getIdLong()) || leaderboard.get(event.getChannel().getIdLong()).value < game.tetris.score) {
+            if (game.tetris.preview == 3 && game.consecutive < 2 && (!leaderboard.containsKey(event.getChannel().getIdLong()) || leaderboard.get(event.getChannel().getIdLong()).value < game.tetris.score)) {
                 leaderboard.put(event.getChannel().getIdLong(), new Score(game.tetris.score, System.currentTimeMillis()));
             }
             event.getChannel().sendMessage("Created replay with id \'" + id + "\'\nReplay can be viewed at https://tetris-bot-replays.web.app").queue();
@@ -668,6 +668,12 @@ public class Bot extends ListenerAdapter {
         for (int i = flags.length - 2; i >= 0; i--) {
             code *= FLAGS[i].length;
             code += flags[i];
+        }
+        if (flags[1] < 2 && flags[2] == 0) {
+            menu.append("\n*Your game is eligible for leaderboard submission.*");
+        }
+        else {
+            menu.append("\n*Your game will not be submitted to the leaderboard.*");
         }
         menu.append("\n**Press 🆗 to start**\nPro tip: use command `start ").append(code).append("` to directly start a game with the current configuration.");
         return menu.toString();
