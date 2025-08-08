@@ -1,40 +1,32 @@
 package com.tetrisbot;
 
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.TreeMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import javax.imageio.ImageIO;
 import javax.security.auth.login.LoginException;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.Permission;
-import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.entities.channel.unions.MessageChannelUnion;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.message.GenericMessageEvent;
@@ -43,10 +35,8 @@ import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent;
 import net.dv8tion.jda.api.exceptions.InsufficientPermissionException;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.requests.GatewayIntent;
-import net.dv8tion.jda.api.utils.FileUpload;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
-import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 
 /**
  * This class handles the Discord API and runs the game simulation using inputs
@@ -56,155 +46,124 @@ import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 public class Bot extends ListenerAdapter {
     static final String DISCORD_TOKEN = System.getenv("DISCORD_TOKEN"); //If testing on your own, use your own bot token
     static final long BOT_ID = 1377027446783610890L; //replace with your bot's ID
-    static final String GIT_TOKEN = System.getenv("GIT_TOKEN"); //use your GitHub token
     static final String VERSION = 
-    "# v1.0.0: Tetris Discord Edition Bot: Full Release" +
-    "\n- Our bot is now hosted on Railway! It will now always be online to use." +
-    "\n- Revamped the game start process with a start menu. Quickstart is still possible." +
-    "\n- Replays are once again on by default." +
-    "\n- New option for player switching rules: switch after every piece." +
-    "\n- Game can now be customized to have 0-5 pieces in preview (default is still 3)." +
-    "\n- You can now view the current version of the game." +
-    "\n- Long replays are now split into smaller pieces to avoid file size limits on Discord." +
-    "\n- Users with the Manage Messages permission are now able to abort a game." +
-    "\n- All channels where the bot is present will be notified once in advance when the bot is shutting down." +
-    "\n- Type command `help` to see all the commands!" +
-    "\n- Fixed some bugs." +
-    "\n## v1.0.1" + 
-    "\n- Fixed some bugs." +
-    "\n- Unfortunately, saving replays as GIFs caused too many issues. Replays are now viewable on this website: https://tetris-bot-replays.web.app/";
+    "# v1.1: Leaderboards" +
+    "\n- Leaderboards have been added. Top 10 global scores and top 3 server-wide scores will be saved. Use command `leaderboard` to view." +
+    "\n- Games are now displayed on embeds. This will save on memory and make reaction-based gameplay much more streamlined." +
+    "\n- Games and keybinds now save when bot goes restart. We really should have implemented this sooner..." +
+    "\n- Our replay viewing website now allows pausing and frame stepping, as well as providing a much cleaner look." +
+    "\n- Some bug fixes and behind-the-scenes work.";
     static final String HELP =
     "**Tetris Bot commands:**" + "\n" +
     "* " + "`start {code}`: Enters the start menu for a new game in a channel. To quickstart, place the code of the desired config, generated from the start menu. 0 is default." + "\n" +
     "* " + "`abort`: aborts the current game in a channel." + "\n" +
-    "* " + "`react`: if reaction-based input mode is enabled, sends a new reaction panel in front of all messages. Useful if discussions pushed the reaction panel far away." + "\n" +
     "* " + "`[input]`: plays the input, if valid. You can also enter any unambiguous prefix of the input, such as `l` for LEFT or `ha` for HARDDROP."+ "\n" +
     "* " + "`[input] -`: repeats the input until it is no longer valid. Only applies to LEFT, RIGHT, and SOFTDROP."+ "\n" +
     "* " + "`keybind {[input] [keybind]}`: sets the list of input-keybind pairs as your custom keybinds. For example, `keybind ha hd ho c ccw z` sets HARDDROP to hd, HOLD to c, and CCW to z. Custom keybinds are case sensitive." + "\n" +
-    "* " + "`keybind {[input] [keybind]}`: displays your current keybinds set." + "\n" +
+    "* " + "`keybind`: displays your current keybinds set." + "\n" +
+    "* " + "`leaderboard`: displays the current leaderboard." + "\n" +
     "* " + "`version`: Gets the current version of the game." + "\n" +
     "**You may send a command by using the \"!tetris\" prefix or by replying to any bot message in the same channel.**";
     static final String[][] FLAGS = {
         {"Off", "On"},
         {"Every input", "Every piece", "Off"},
         {"3", "4", "5", "0", "1", "2"}};
+    static HashMap<Long, Long> menuChannels;
     static HashMap<Long, int[]> menus;
     static HashMap<Long, Game> games;
     static HashMap<Long, HashMap<String, Tetris.Input>> keybinds;
+    static HashMap<Long, Score> leaderboard;
     static long shutdown;
     static HashSet<Long> broadcasted;
-
-    static class Game {
-        Tetris tetris;
-        String owner;
-        long lastUserId;
-        long inputPanelId;
-        Message gameMessage;
-        int consecutive;
-        int frames;
-        StringBuilder replay;
-        public Game(String o, int[] flags) {
-            tetris = new Tetris((flags[2] + 3) % 6);
-            owner = o;
-            lastUserId = -1;
-            if (flags[0] == 1){
-                inputPanelId = 0;
-            }
-            else {
-                inputPanelId = -1;
-            }
-            gameMessage = null;
-            consecutive = flags[1];
-            frames = -1;
-            replay = new StringBuilder();
-            replay.append(tetris.preview);
-        }
-
-        /**
-         * Converts the game sequence of a game into a replay and
-         * stores it in GitHub.
-         */
-        public String saveReplay() {
-            String replayId = owner + "/" + System.currentTimeMillis();
-            String apiURL = "https://api.github.com/repos/derrick-x/Tetris-Replays/contents/replays/" + replayId + "-replay.txt";
-            String jsonPayload = "{"
-                + "\"message\": \"Upload Tetris replay\","
-                + "\"content\": \"" + Base64.getEncoder().encodeToString(replay.toString().getBytes()) + "\""
-                + "}";
-            try {
-                HttpURLConnection conn = (HttpURLConnection) new URL(apiURL).openConnection();
-                conn.setRequestMethod("PUT");
-                conn.setDoOutput(true);
-                conn.setRequestProperty("Authorization", "Bearer " + GIT_TOKEN);
-                conn.setRequestProperty("Accept", "application/vnd.github+json");
-                conn.setRequestProperty("Content-Type", "application/json");
-                OutputStream os = conn.getOutputStream();
-                os.write(jsonPayload.getBytes(StandardCharsets.UTF_8));
-                int code = conn.getResponseCode();
-                System.out.println("GitHub upload response: " + code);
-                if (code != 201) {
-                    return null;
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-                return null;
-            }
-            return replayId;
+    static String announcement;
+    static boolean ready;
+    static class Score implements Comparable<Score> {
+        int value;
+        long time;
+        public Score(int v, long t) {
+            value = v; time = t;
         }
         
-        /**
-         * Adds a frame to the current game's replay file.
-         * @param image The frame to add.
-         * @throws IOException
-         */
-        public void addFrame(String user, Tetris.Input input) {
-            replay.append("\n");
-            int[][] shape = new int[4][2];
-            for (int i = 0; i < 4; i++) {
-                shape[i][0] = Tetris.SHAPES[tetris.queue.get(0).ordinal()][i][0] + tetris.position[0];
-                shape[i][1] = Tetris.SHAPES[tetris.queue.get(0).ordinal()][i][1] + tetris.position[1];
-            }
-            int[][] shadow = tetris.getShadow();
-            for (int y = 0; y < 20; y++) {
-                for (int x = 0; x < 10; x += 2) {
-                    int tile1 = tetris.board[y][x].ordinal();
-                    int tile2 = tetris.board[y][x + 1].ordinal();
-                    for (int i = 0; i < 4; i++) {
-                        if (x == shadow[i][0] && y == shadow[i][1]) {
-                            tile1 = 8;
-                        }
-                        if (x + 1 == shadow[i][0] && y == shadow[i][1]) {
-                            tile2 = 8;
-                        }
-                    }
-                    for (int i = 0; i < 4; i++) {
-                        if (x == shape[i][0] && y == shape[i][1]) {
-                            tile1 = tetris.queue.get(0).ordinal();
-                        }
-                        if (x + 1 == shape[i][0] && y == shape[i][1]) {
-                            tile2 = tetris.queue.get(0).ordinal();
-                        }
-                    }
-                    replay.append((char) (tile1 * 9 + tile2 + 33));
+        @Override
+        public int compareTo(Score o) {
+            if (value == o.value) {
+                if (time > o.time) {
+                    return 1;
+                }
+                else if (time < o.time) {
+                    return -1;
+                }
+                else {
+                    return 0;
                 }
             }
-            for (int i = 1; i <= tetris.preview; i++) {
-                replay.append((char) (tetris.queue.get(i).ordinal() + 33));
+            else {
+                return o.value - value;
             }
-            replay.append((char) (tetris.hold.ordinal() + 33));
-            replay.append("~").append(tetris.score).append("~").append(tetris.lines).append("~").append(tetris.message).append("~");
-            if (input != null) {
-                replay.append(input.ordinal());
-                replay.append(user);
-            }
-            frames++;
         }
     }
     
     public static void main(String[] args) throws LoginException {
+        ready = false;
         keybinds = new HashMap<>();
+        games = new HashMap<>();
+        menuChannels = new HashMap<>();
+        menus = new HashMap<>();
+        shutdown = -1;
+        broadcasted = new HashSet<>();
+        leaderboard = new HashMap<>();
+        try {
+            String[] save = GitHubAPI.read("save.txt").split("\n");
+            int index = 0;
+            while (index < save.length && save[index].length() > 0) {
+                long channel = Long.parseLong(save[index].substring(5));
+                index++;
+                String owner = save[index];
+                index++;
+                long lastUserId = Long.parseLong(save[index]);
+                index++;
+                int[] flags = {save[index].charAt(0) - '0', save[index].charAt(1) - '0', (save[index].charAt(2) - '0' + 3) % 6};
+                Game game = new Game(owner, flags);
+                game.lastUserId = lastUserId;
+                index++;
+                ArrayList<Tetris.Piece> queue = new ArrayList<>();
+                for (int i = 0; i < save[index].length(); i++) {
+                    queue.add(Tetris.Piece.values()[save[index].charAt(i) - '0']);
+                }
+                game.tetris.fullQueue = queue;
+                game.tetris.queue = new LinkedList<>(queue);
+                game.addFrame(null, null);
+                index++;
+                while (index < save.length && !save[index].startsWith("Game ") && save[index].length() > 0) {
+                    Tetris.Input input = Tetris.Input.values()[save[index].charAt(0) - '0'];
+                    String user = save[index].substring(1);
+                    game.tetris.input(input);
+                    game.addFrame(user, input);
+                    index++;
+                }
+                games.put(channel, game);
+                if (index < save.length && save[index].length() == 0) {
+                    break;
+                }
+            }
+            index++;
+            while (index < save.length) {
+                long user = Long.parseLong(save[index].substring(8));
+                HashMap<String, Tetris.Input> keybindMap = new HashMap<>();
+                index++;
+                while (index < save.length && !save[index].startsWith("Keybind ")) {
+                    keybindMap.put(save[index].substring(1), Tetris.Input.values()[save[index].charAt(0) - '0']);
+                    index++;
+                }
+                keybinds.put(user, keybindMap);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(1);
+        }
         System.setProperty("java.awt.headless", "true");
-        JDABuilder.createDefault(DISCORD_TOKEN)
+        try {
+            JDABuilder.createDefault(DISCORD_TOKEN)
             .enableIntents(GatewayIntent.MESSAGE_CONTENT)
             .enableIntents(GatewayIntent.GUILD_MEMBERS)
             .setMemberCachePolicy(MemberCachePolicy.NONE)
@@ -216,24 +175,36 @@ public class Bot extends ListenerAdapter {
                 CacheFlag.ONLINE_STATUS
             )
             .addEventListeners(new Bot())
-            .build();
-        games = new HashMap<>();
-        menus = new HashMap<>();
-        shutdown = -1;
-        broadcasted = new HashSet<>();
+            .build()
+            .awaitReady();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            System.exit(1);
+        }
+        try {
+            String[] lbFile = GitHubAPI.read("leaderboard.txt").split("\n");
+            for (String entry : lbFile) {
+                leaderboard.put(Long.valueOf(entry.split(" ")[0]), new Score(Integer.parseInt(entry.split(" ")[1]), Long.parseLong(entry.split(" ")[2])));
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(1);
+        }
+        ready = true;
     }
 
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {
+        //Owner commands
         if (event.getAuthor().getIdLong() == 722202264055447643L) {
             if (event.getMessage().getContentRaw().equals("!tetris shutdown")) {
-                shutdown = System.currentTimeMillis() + 3600000;
-                ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-                scheduler.schedule(() -> {
-                    System.exit(0);
-                }, 2, TimeUnit.MINUTES);
+                shutdown(event);
+            }
+            if (event.getMessage().getContentRaw().startsWith("!tetris announce")) {
+                announce(event.getMessage().getContentRaw().substring(17));
             }
         }
+        //Validate message as command
         if (event.getMember() == null || event.getAuthor().isBot()) {
             return;
         }
@@ -245,174 +216,290 @@ public class Bot extends ListenerAdapter {
         } else {
             return;
         }
+        if (!ready) {
+            event.getChannel().sendMessage("Please wait a moment for the bot to finish starting up!").queue();
+            return;
+        }
+        //Broadcast announcements
         if (shutdown > 0 && !broadcasted.contains(event.getChannel().getIdLong())) {
-            long minutes = (shutdown - System.currentTimeMillis()) / 60000;
-            long seconds = ((shutdown - System.currentTimeMillis()) % 60000) / 1000;
-            event.getChannel().sendMessage("ATTENTION: Tetris Bot will be shutting down in " + minutes + "m " + seconds + "s for a maintenance break!").queue();
+            long seconds = (shutdown - System.currentTimeMillis()) / 1000;
+            event.getChannel().sendMessage("ATTENTION: Tetris Bot will be going offline in " + seconds + "s for a maintenance break! Service may be interrupted for a few minutes.").queue();
             broadcasted.add(event.getChannel().getIdLong());
         }
-        Game game = games.get(event.getChannel().getIdLong());
+        if (announcement != null && !broadcasted.contains(event.getChannel().getIdLong())) {
+            event.getChannel().sendMessage("ANNOUNCEMENT: " + announcement).queue();
+            broadcasted.add(event.getChannel().getIdLong());
+        }
         if (args[0].length() == 0) {
             return;
         }
+        //Run command
         if (args[0].equals("start")) {
-            if (game == null) {
-                if (args.length < 2 || !args[1].matches("-?\\d+(\\.\\d+)?")) {
-                    int[] flags = new int[FLAGS.length + 1];
-                    event.getChannel().sendMessage(startMenu(flags)).queue(sentMessage -> {
-                        menus.put(sentMessage.getIdLong(), flags);
-                        sentMessage.addReaction(Emoji.fromUnicode("🔼")).queue();
-                        sentMessage.addReaction(Emoji.fromUnicode("◀️")).queue();
-                        sentMessage.addReaction(Emoji.fromUnicode("▶️")).queue();
-                        sentMessage.addReaction(Emoji.fromUnicode("🔽")).queue();
-                        sentMessage.addReaction(Emoji.fromUnicode("🆗")).queue();
-                    });
-                }
-                else {
-                    int code = Integer.parseInt(args[1]);
-                    int[] flags = new int[FLAGS.length];
-                    for (int i = 0; i < FLAGS.length; i++) {
-                        flags[i] = code % FLAGS[i].length;
-                        code /= FLAGS[i].length;
-                    }
-                    event.getChannel().sendMessage("Starting game by " + event.getAuthor().getName() + "...").queue();
-                    games.put(event.getChannel().getIdLong(), new Game(event.getAuthor().getName(), flags));
-                    sendTetris(event.getChannel(), games.get(event.getChannel().getIdLong()), null, null);
-                }
-            }
-            else {
-                event.getChannel().sendMessage("Game already in progress!").queue();
-            }
+            start(event, ((args.length > 1 && args[1].matches("^\\d+$"))) ? Integer.parseInt(args[1]) : -1);
         }
         if (args[0].equals("abort")) {
-            if (game == null) {
-                event.getChannel().sendMessage("No game in progress!").queue();
-            }
-            else if (event.getAuthor().getName().equals(game.owner) || (event.getMember() != null && event.getMember().hasPermission(Permission.MESSAGE_MANAGE))) {
-                event.getChannel().sendMessage("Game aborted").queue();
-                saveReplay(event, game);
-                games.remove(event.getChannel().getIdLong());
-            }
-            else {
-                event.getChannel().sendMessage("Only " + game.owner + " and users with the Manage Messages permission can abort the game!").queue();
-            }
-        }
-        if (args[0].equals("replay")) {
-            if (args.length < 2) {
-                event.getChannel().sendMessage("Please specify a replay id!").queue();
-            }
-            else {
-                event.getChannel().sendMessage("Fetching replays containing key " + args[1] + "...").queue();
-                List<String> replays = getReplays(args[1]);
-                StringBuilder msg = new StringBuilder();
-                msg.append(replays.size());
-                msg.append(" replay");
-                if (replays.size() != 1) {
-                    msg.append("s");
-                }
-                msg.append(" found.");
-                if (replays.size() > 10) {
-                    msg.append(" Only displaying first 10.");
-                }
-                msg.append("\n");
-                for (int i = 0; i < Math.min(replays.size(), 10); i++) {
-                    msg.append(replays.get(i));
-                    msg.append("\n");
-                }
-                event.getChannel().sendMessage(msg.toString()).queue();
-            }
+            abort(event);
         }
         if (args[0].equals("keybind")) {
-            if (args.length % 2 != 1) {
-                event.getChannel().sendMessage("Incorrect number of arguments provided! (Please provide a list of input-string pairs)").queue();
-            }
-            else if (args.length == 1) {
-                HashMap<String, Tetris.Input> user = keybinds.get(event.getAuthor().getIdLong());
-                if (user == null) {
-                    event.getChannel().sendMessage(event.getAuthor().getEffectiveName() + ", you have no custom keybinds set!").queue();
-                }
-                else {
-                    StringBuilder msg = new StringBuilder(event.getAuthor().getEffectiveName() + " keybinds:\n");
-                    for (String key : user.keySet()) {
-                        msg.append(key).append(": ").append(user.get(key)).append("\n");
-                    }
-                    event.getChannel().sendMessage(msg.toString()).queue();
-                }
-            }
-            else {
-                StringBuilder msg = new StringBuilder(event.getAuthor().getEffectiveName() + " updated keybinds:\n");
-                HashMap<String, Tetris.Input> user = keybinds.get(event.getAuthor().getIdLong());
-                if (user == null) {
-                    user = new HashMap<>();
-                    keybinds.put(event.getAuthor().getIdLong(), user);
-                }
-                for (int i = 2; i < args.length; i += 2) {
-                    Tetris.Input input = stringToInput(args[i - 1], event.getAuthor().getIdLong());
-                    if (input != null) {
-                        user.put(args[i], input);
-                        msg.append(input).append(" set to ").append(args[i]).append("\n");
-                    }
-                }
-                event.getChannel().sendMessage(msg.toString()).queue();
-            }
+            keybind(event, Arrays.copyOfRange(args, 1, args.length));
         }
-        if (args[0].equals("react")){
-            if (game == null) {
-                event.getChannel().sendMessage("No game in progress!").queue();
-            }
-            else {
-                if (game.inputPanelId < 0) {
-                    event.getChannel().sendMessage("Current game is not using reaction inputs!").queue();
-                }
-                else {
-                    event.getChannel().retrieveMessageById(game.inputPanelId).complete().delete().complete();
-                    event.getChannel().sendMessage("Use the reactions below to play inputs.").queue(sentMessage -> {
-                        game.inputPanelId = sentMessage.getIdLong();
-                        for (int i = 0; i < 7; i++) {
-                            sentMessage.addReaction(Emoji.fromUnicode(Tetris.INPUT_EMOJIS[i])).queue();
-                        }
-                    });
-                }
-            }
+        if (args[0].equals("leaderboard")) {
+            leaderboard(event);
         }
         if (args[0].equals("version")) {
-            event.getChannel().sendMessage(VERSION).queue();
+            version(event);
         }
         if (args[0].equals("help")) {
-            event.getChannel().sendMessage(HELP).queue();
+            help(event);
         }
         Tetris.Input input = stringToInput(args[0], event.getAuthor().getIdLong());
         if (input != null) {
-            if (game == null) {
-                event.getChannel().sendMessage("No game in progress!").queue();
+            input(event, input, args.length > 1 && args[1].equals("-"));
+        }
+    }
+
+    public void shutdown(MessageReceivedEvent event) {
+        broadcasted = new HashSet<>();
+        shutdown = System.currentTimeMillis() + 60000;
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        scheduler.schedule(() -> {
+            StringBuilder save = new StringBuilder();
+            for (long channel : games.keySet()) {
+                save.append("Game ").append(channel);
+                Game game = games.get(channel);
+                save.append("\n").append(game.owner);
+                save.append("\n").append(game.lastUserId);
+                save.append("\n").append(game.react ? 1 : 0).append(game.consecutive).append(game.tetris.preview).append("\n");
+                for (int i = 0; i < game.tetris.fullQueue.size(); i++) {
+                    save.append(game.tetris.fullQueue.get(i).ordinal());
+                }
+                for (int i = 0; i < game.users.size(); i++) {
+                    save.append("\n").append(game.tetris.inputs.get(i).ordinal()).append(game.users.get(i));
+                }
+                save.append("\n");
             }
-            else if (game.tetris.getValidMoves().contains(input)) {
-                if (game.consecutive == 2 || event.getAuthor().getIdLong() != game.lastUserId) {
-                    boolean placed = false;
-                    if (args.length > 1 && input != Tetris.Input.CW && input != Tetris.Input.CCW && input != Tetris.Input.HARDDROP && args[1].equals("-")) {
-                        while (game.tetris.getValidMoves().contains(input)) {
-                            placed |= game.tetris.input(input);
-                        }
-                    }
-                    else {
-                        placed = game.tetris.input(input);
-                    }
-                    if (placed || game.consecutive == 0) {
-                        game.lastUserId = event.getAuthor().getIdLong();
-                    }
-                    sendTetris(event.getChannel(), game, event.getMember().getEffectiveName(), input);
-                    if (game.tetris.lines >= 300 || !game.tetris.alive) {
-                        saveReplay(event, game);
-                        games.remove(event.getChannel().getIdLong());
+            for (long user : keybinds.keySet()) {
+                save.append("\n").append("Keybind ").append(user);
+                for (String keybind : keybinds.get(user).keySet()) {
+                    save.append("\n").append(keybinds.get(user).get(keybind).ordinal()).append(keybind);
+                }
+            }
+            try {
+                GitHubAPI.write("save.txt", save.toString());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            StringBuilder lbSave = new StringBuilder();
+            for (long channel : leaderboard.keySet()) {
+                lbSave.append(channel).append(" ")
+                .append(leaderboard.get(channel).value).append(" ")
+                .append(leaderboard.get(channel).time).append("\n");
+            }
+            lbSave.deleteCharAt(lbSave.length() - 1);
+            try {
+                GitHubAPI.write("leaderboard.txt", lbSave.toString());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            event.getChannel().sendMessage("Finished shutting down").queue();
+            System.exit(0);
+        }, 1, TimeUnit.MINUTES);
+    }
+
+    public void announce(String message) {
+        broadcasted = new HashSet<>();
+        announcement = message;
+        System.out.println(message);
+    }
+
+    public void start(MessageReceivedEvent event, int code) {
+        Game game = games.get(event.getChannel().getIdLong());
+        if (game == null) {
+            if (code < 0) {
+                int[] flags = new int[FLAGS.length + 1];
+                event.getChannel().sendMessage(startMenu(flags)).queue(sentMessage -> {
+                    menuChannels.put(event.getChannel().getIdLong(), sentMessage.getIdLong());
+                    menus.put(sentMessage.getIdLong(), flags);
+                    sentMessage.addReaction(Emoji.fromUnicode("🔼")).queue();
+                    sentMessage.addReaction(Emoji.fromUnicode("◀️")).queue();
+                    sentMessage.addReaction(Emoji.fromUnicode("▶️")).queue();
+                    sentMessage.addReaction(Emoji.fromUnicode("🔽")).queue();
+                    sentMessage.addReaction(Emoji.fromUnicode("🆗")).queue();
+                });
+            }
+            else {
+                int[] flags = new int[FLAGS.length];
+                for (int i = 0; i < FLAGS.length; i++) {
+                    flags[i] = code % FLAGS[i].length;
+                    code /= FLAGS[i].length;
+                }
+                event.getChannel().sendMessage("Starting game by " + event.getAuthor().getName() + "...").queue();
+                games.put(event.getChannel().getIdLong(), new Game(event.getAuthor().getName(), flags));
+                games.get(event.getChannel().getIdLong()).addFrame(null, null);
+                menus.remove(menuChannels.remove(event.getChannel().getIdLong()));
+                sendTetris(event.getChannel(), games.get(event.getChannel().getIdLong()), null, null, true);
+            }
+        }
+        else {
+            event.getChannel().sendMessage("Game already in progress!").queue();
+        }
+    }
+
+    public void abort(MessageReceivedEvent event) {
+        Game game = games.get(event.getChannel().getIdLong());
+        if (game == null) {
+            event.getChannel().sendMessage("No game in progress!").queue();
+        }
+        else if (event.getAuthor().getName().equals(game.owner) || (event.getMember() != null && event.getMember().hasPermission(Permission.MESSAGE_MANAGE))) {
+            event.getChannel().sendMessage("Game aborted").queue();
+            saveReplay(event, game);
+            games.remove(event.getChannel().getIdLong());
+        }
+        else {
+            event.getChannel().sendMessage("Only " + game.owner + " and users with the Manage Messages permission can abort the game!").queue();
+        }
+    }
+
+    public void keybind(MessageReceivedEvent event, String[] args) {
+        if (args.length % 2 != 0) {
+            event.getChannel().sendMessage("Incorrect number of arguments provided! (Please provide a list of input-string pairs)").queue();
+        }
+        else if (args.length == 0) {
+            HashMap<String, Tetris.Input> user = keybinds.get(event.getAuthor().getIdLong());
+            if (user == null) {
+                event.getChannel().sendMessage(event.getAuthor().getEffectiveName() + ", you have no custom keybinds set!").queue();
+            }
+            else {
+                StringBuilder msg = new StringBuilder(event.getAuthor().getEffectiveName() + " keybinds:\n");
+                for (String key : user.keySet()) {
+                    msg.append(key).append(": ").append(user.get(key)).append("\n");
+                }
+                event.getChannel().sendMessage(msg.toString()).queue();
+            }
+        }
+        else {
+            StringBuilder msg = new StringBuilder(event.getAuthor().getEffectiveName() + " updated keybinds:\n");
+            HashMap<String, Tetris.Input> user = keybinds.get(event.getAuthor().getIdLong());
+            if (user == null) {
+                user = new HashMap<>();
+                keybinds.put(event.getAuthor().getIdLong(), user);
+            }
+            for (int i = 1; i < args.length; i += 2) {
+                Tetris.Input input = stringToInput(args[i - 1], event.getAuthor().getIdLong());
+                if (input != null) {
+                    user.put(args[i], input);
+                    msg.append(input).append(" set to ").append(args[i]).append("\n");
+                }
+            }
+            event.getChannel().sendMessage(msg.toString()).queue();
+        }
+    }
+
+    public void leaderboard(MessageReceivedEvent event) {
+        event.getChannel().sendMessage("Retrieving leaderboard data...").queue();
+        TreeMap<Score, TextChannel> global = new TreeMap<>();
+        TreeMap<Score, TextChannel> server = new TreeMap<>();
+        for (long id : leaderboard.keySet()) {
+            TextChannel channel = event.getJDA().getTextChannelById(id);
+            if (channel != null && channel.getGuild().getIdLong() == event.getGuild().getIdLong()) {
+                server.put(leaderboard.get(id), channel);
+            }
+            global.put(leaderboard.get(id), channel);
+        }
+        StringBuilder lbDisplay = new StringBuilder();
+        lbDisplay.append("**Global Leaderboard**").append("\n");
+        int index = 0;
+        for (Score s : global.keySet()) {
+            if (index == Math.min(global.size(), 10)) {
+                break;
+            }
+            lbDisplay.append(index + 1)
+            .append(". ");
+            if (global.get(s) == null) {
+                lbDisplay.append("UNKNOWN CHANNEL");
+            }
+            else {
+                lbDisplay.append(global.get(s).getGuild().getName())
+                .append("/")
+                .append(global.get(s).getName());
+            }
+            lbDisplay.append(" | ")
+            .append(s.value)
+            .append(" | ")
+            .append(new Date(s.time).toString())
+            .append("\n");
+        }
+        lbDisplay.append("**").append(event.getGuild().getName()).append(" Leaderboard**").append("\n");
+        index = 0;
+        for (Score s : server.keySet()) {
+            if (index == Math.min(global.size(), 10)) {
+                break;
+            }
+            lbDisplay.append(index + 1)
+            .append(". ");
+            if (server.get(s) == null) {
+                lbDisplay.append("UNKNOWN CHANNEL");
+            }
+            else {
+                lbDisplay.append(server.get(s).getName());
+            }
+            lbDisplay.append(" | ")
+            .append(s.value)
+            .append(" | ")
+            .append(new Date(s.time).toString())
+            .append("\n");
+        }
+        if (leaderboard.containsKey(event.getChannel().getIdLong())) {
+            lbDisplay.append("**Channel High Score: **")
+            .append(leaderboard.get(event.getChannel().getIdLong()).value)
+            .append(" | ")
+            .append(new Date(leaderboard.get(event.getChannel().getIdLong()).time).toString())
+            .append("\n");
+        }
+        event.getChannel().sendMessage(lbDisplay.toString()).queue();
+    }
+
+    public void version(MessageReceivedEvent event) {
+        event.getChannel().sendMessage(VERSION).queue();
+    }
+
+    public void help(MessageReceivedEvent event) {
+        event.getChannel().sendMessage(HELP).queue();
+    }
+
+    public void input(MessageReceivedEvent event, Tetris.Input input, boolean repeat) {
+        Game game = games.get(event.getChannel().getIdLong());
+        if (game == null) {
+            event.getChannel().sendMessage("No game in progress!").queue();
+        }
+        else if (game.tetris.getValidMoves().contains(input)) {
+            if (game.consecutive == 2 || event.getAuthor().getIdLong() != game.lastUserId) {
+                boolean placed = false;
+                if (repeat && input != Tetris.Input.CW && input != Tetris.Input.CCW && input != Tetris.Input.HARDDROP) {
+                    while (game.tetris.getValidMoves().contains(input)) {
+                        placed |= game.tetris.input(input);
+                        game.addFrame(event.getMember().getEffectiveName(), input);
                     }
                 }
                 else {
-                    event.getChannel().sendMessage(event.getMember().getEffectiveName() + ", you already played the last move!").queue();
+                    placed = game.tetris.input(input);
+                    game.addFrame(event.getMember().getEffectiveName(), input);
+                }
+                if (placed || game.consecutive == 0) {
+                    game.lastUserId = event.getAuthor().getIdLong();
+                }
+                sendTetris(event.getChannel(), game, event.getMember().getEffectiveName(), input, true);
+                if (game.tetris.lines >= 300 || !game.tetris.alive) {
+                    saveReplay(event, game);
+                    games.remove(event.getChannel().getIdLong());
                 }
             }
             else {
-                event.getChannel().sendMessage(input + " is not a valid move!").queue();
+                event.getChannel().sendMessage(event.getMember().getEffectiveName() + ", you already played the last move!").queue();
             }
+        }
+        else {
+            event.getChannel().sendMessage(input + " is not a valid move!").queue();
         }
     }
 
@@ -451,15 +538,11 @@ public class Bot extends ListenerAdapter {
                 }
                 break;
                 case "🆗":
-                if (games.get(event.getChannel().getIdLong()) == null) {
-                    event.getChannel().sendMessage("Starting game by " + event.retrieveUser().complete().getName() + "...").queue();
-                    games.put(event.getChannel().getIdLong(), new Game(event.retrieveUser().complete().getName(), flags));
-                    sendTetris(event.getChannel(), games.get(event.getChannel().getIdLong()), null, null);
-                }
-                else {
-                    event.getChannel().sendMessage("Game already in progress!").queue();
-                }
+                event.getChannel().sendMessage("Starting game by " + event.retrieveUser().complete().getName() + "...").queue();
+                games.put(event.getChannel().getIdLong(), new Game(event.retrieveUser().complete().getName(), flags));
+                sendTetris(event.getChannel(), games.get(event.getChannel().getIdLong()), null, null, true);
                 menus.remove(event.getMessageIdLong());
+                menuChannels.remove(event.getChannel().getIdLong());
                 break;
                 default:
                 remove = false;
@@ -467,16 +550,16 @@ public class Bot extends ListenerAdapter {
             if (remove) {
                 try {
                     event.getReaction().removeReaction(user).complete();
+                    event.retrieveMessage().complete().editMessage(startMenu(flags)).queue();
                 } catch (InsufficientPermissionException e) {}
             }
-            event.retrieveMessage().complete().editMessage(startMenu(flags)).queue();
             return;
         }
         Game game = games.get(event.getChannel().getIdLong());
         if (game == null) {
             return;
         }
-        if (event.getMessageIdLong() == game.inputPanelId) {
+        if (event.getMessageIdLong() == game.gameMessage.getIdLong()) {
             try {
                 event.getReaction().removeReaction(user).complete();
             } catch (InsufficientPermissionException e) {}
@@ -485,12 +568,12 @@ public class Bot extends ListenerAdapter {
                     Tetris.Input input = Tetris.Input.values()[i];
                     if (game.consecutive == 2 || event.retrieveUser().complete().getIdLong() != game.lastUserId) {
                         if (game.tetris.getValidMoves().contains(input)) {
-                            boolean placed = false;
-                            placed = game.tetris.input(input);
+                            boolean placed = game.tetris.input(input);
+                            game.addFrame(event.getMember().getEffectiveName(), input);
                             if (placed || game.consecutive == 0) {
                                 game.lastUserId = event.getUserIdLong();
                             }
-                            sendTetris(event.getChannel(), game, event.retrieveMember().complete().getEffectiveName(), input);
+                            sendTetris(event.getChannel(), game, event.retrieveMember().complete().getEffectiveName(), input, false);
                             if (game.tetris.lines >= 300 || !game.tetris.alive) {
                                 saveReplay(event, game);
                                 games.remove(event.getChannel().getIdLong());
@@ -517,59 +600,22 @@ public class Bot extends ListenerAdapter {
      * @param channel The channel to send the message.
      * @param game The Tetris.java instance in to display.
      */
-    public void sendTetris(MessageChannelUnion channel, Game game, String user, Tetris.Input input) {
-        BufferedImage image = new BufferedImage(300, 300, BufferedImage.TYPE_INT_RGB);
-        Graphics g = image.getGraphics();
-        paintGame(g, game.tetris, user, input);
-        g.dispose();
-        try {
-            game.addFrame(user, input);
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            ImageIO.write(image, "jpg", baos);
-            image.flush();
-            image = null;
-            byte[] imageBytes = baos.toByteArray();
-            baos.flush();
-            baos.close();
-            baos = null;
-            MessageCreateBuilder message = new MessageCreateBuilder();
-            StringBuilder text = new StringBuilder();
-            if (game.tetris.alive && game.tetris.lines < 300) {
-                text.append("Valid moves:");
-                List<Tetris.Input> moves = game.tetris.getValidMoves();
-                for (int i = 0; i < moves.size(); i++) {
-                    text.append("\n");
-                    text.append(Tetris.INPUT_EMOJIS[moves.get(i).ordinal()]);
-                    text.append(moves.get(i));
+    public void sendTetris(MessageChannelUnion channel, Game game, String user, Tetris.Input input, boolean sendNew) {
+        EmbedBuilder gameDisp = game.displayGame(user, input);
+        if (sendNew || game.gameMessage == null) {
+            channel.sendMessageEmbeds(gameDisp.build()).queue(sentMessage -> {
+                game.gameMessage = sentMessage;
+                if (game.react) {
+                    for (int i = 0; i < 7; i++) {
+                        sentMessage.addReaction(Emoji.fromUnicode(Tetris.INPUT_EMOJIS[i])).queue();
+                    }
                 }
-            }
-            else {
-                text.append("Game over!");
-            }
-            message.setContent(text.toString());
-            message.addFiles(FileUpload.fromData(imageBytes, "tetris.jpg"));
-            System.gc();
-            if (game.inputPanelId < 0) {
-                channel.sendMessage(message.build()).queue();
-            }
-            else {
-                if (game.gameMessage != null) {
-                    game.gameMessage.delete().queue();
-                }
-                else {
-                    channel.sendMessage("Use the reactions below to play inputs.").queue(sentMessage -> {
-                        game.inputPanelId = sentMessage.getIdLong();
-                        for (int i = 0; i < 7; i++) {
-                            sentMessage.addReaction(Emoji.fromUnicode(Tetris.INPUT_EMOJIS[i])).queue();
-                        }
-                    });
-                }
-                channel.sendMessage(message.build()).queue(sentMessage -> {
-                    game.gameMessage = sentMessage;
-                });
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
+            });
+        }
+        else {
+            game.gameMessage.editMessageEmbeds(gameDisp.build()).queue(sentMessage -> {
+                game.gameMessage = sentMessage;
+            });
         }
     }
 
@@ -590,7 +636,10 @@ public class Bot extends ListenerAdapter {
             event.getChannel().sendMessage("Error creating replay!").queue();
         }
         else {
-            event.getChannel().sendMessage("Created replay with id \'" + id + "\nReplay can be viewed at https://tetris-bot-replays.web.app").queue();
+            if (!leaderboard.containsKey(event.getChannel().getIdLong()) || leaderboard.get(event.getChannel().getIdLong()).value < game.tetris.score) {
+                leaderboard.put(event.getChannel().getIdLong(), new Score(game.tetris.score, System.currentTimeMillis()));
+            }
+            event.getChannel().sendMessage("Created replay with id \'" + id + "\'\nReplay can be viewed at https://tetris-bot-replays.web.app").queue();
         }
     }
 
@@ -697,79 +746,5 @@ public class Bot extends ListenerAdapter {
             e.printStackTrace();
             return null;
         }
-    }
-
-    /**
-     * Draws the current frame of the given game onto the Graphics component.
-     * @param g The Graphics component to draw on.
-     * @param game The game state to draw.
-     * @param user The name of the user to display.
-     * @param input The last input received by the game.
-     */
-    public static void paintGame(Graphics g, Tetris game, String user, Tetris.Input input) {
-        Graphics2D g2d = (Graphics2D) g;
-        g2d.setStroke(new BasicStroke(2));
-        g2d.setColor(Color.BLACK);
-        g2d.fillRect(0, 0, 300, 300);
-        g2d.setColor(Color.WHITE);
-        g2d.drawRect(90, 30, 120, 240);
-        for (int y = 0; y < 20; y++) {
-            for (int x = 0; x < 10; x++) {
-                g2d.setColor(new Color(Tetris.getColor(game.board[y][x], false)));
-                g2d.fillRect(x * 12 + 90, y * 12 + 30, 12, 12);
-            }
-        }
-        int[][] shape = game.getShadow();
-        g2d.setColor(Color.GRAY);
-        for (int i = 0; i < 4; i++) {
-            g2d.fillRect(shape[i][0] * 12 + 90, shape[i][1] * 12 + 30, 12, 12);
-        }
-        shape = Tetris.getShape(game.queue.get(0), game.rotation);
-        g2d.setColor(new Color(Tetris.getColor(game.queue.get(0), true)));
-        for (int i = 0; i < 4; i++) {
-            g2d.fillRect((shape[i][0] + game.position[0]) * 12 + 90, (shape[i][1] + game.position[1]) * 12 + 30, 12, 12);
-        }
-        for (int i = 1; i <= game.preview; i++) {
-            shape = Tetris.getShape(game.queue.get(i), 0);
-            g2d.setColor(new Color(Tetris.getColor(game.queue.get(i), false)));
-            for (int j = 0; j < 4; j++) {
-                g2d.fillRect(shape[j][0] * 12 + 246, shape[j][1] * 12 + 30 + 36 * i, 12, 12);
-            }
-        }
-        g2d.setColor(Color.WHITE);
-        g2d.drawRect(222, 42, 72, 12 + game.preview * 36);
-        g2d.setFont(new Font("Arial", Font.PLAIN, 9));
-        g2d.drawString("NEXT", 222, 36);
-        if (game.hold != Tetris.Piece.EMPTY) {
-            shape = Tetris.getShape(game.hold, 0);
-            g2d.setColor(new Color(Tetris.getColor(game.hold, false)));
-            for (int i = 0; i < 4; i++) {
-                g2d.fillRect(shape[i][0] * 12 + 36, shape[i][1] * 12 + 66, 12, 12);
-            }
-        }
-        g2d.setColor(Color.WHITE);
-        g2d.drawRect(12, 42, 72, 48);
-        g2d.drawString("HOLD", 12, 36);
-        g2d.setStroke(new BasicStroke(0.5f));
-        g2d.setColor(Color.DARK_GRAY);
-        for (int y = 1; y < 20; y++) {
-            g2d.drawLine(90, y * 12 + 30, 210, y * 12 + 30);
-        }
-        for (int x = 1; x < 10; x++) {
-            g2d.drawLine(90 + x * 12, 30, 90 + x * 12, 270);
-        }
-        g2d.setFont(new Font("Arial", Font.PLAIN, 18));
-        g2d.setColor(Color.WHITE);
-        if (user != null) {
-            g2d.drawString(user + " played " + input, 6, 18);
-        }
-        g2d.drawString("Score", 6, 120);
-        g2d.drawString(game.score + "", 6, 138);
-        g.drawString("Level", 6, 168);
-        g2d.drawString(Math.min(30, (game.lines / 10 + 1)) + "", 6, 186);
-        g2d.drawString("Lines", 6, 216);
-        g2d.drawString(game.lines + "", 6, 234);
-        g2d.setFont(new Font("Arial", Font.PLAIN, 9));
-        g2d.drawString(game.message, 6, 288);
     }
 }

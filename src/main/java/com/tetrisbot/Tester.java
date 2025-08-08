@@ -28,6 +28,8 @@ import javax.swing.JFrame;
 public class Tester extends Canvas {
     static Tetris tetris;
     public static void main(String[] args) throws IOException {
+        System.out.println("-10".matches("^\\d+$"));
+        System.exit(0);
         ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
         buffer.putLong(System.currentTimeMillis());
         System.out.println(Base64.getEncoder().encodeToString(buffer.array()));

@@ -148,7 +148,7 @@ public class Tetris {
         return pieces;
     }
 
-    /** TODO
+    /**
      * Calculates the kick location of a rotation for a given piece and board
      * using the super rotation system.
      * @param board The current board state, without the rotating piece.
