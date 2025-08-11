@@ -27,6 +27,7 @@ import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.entities.channel.concrete.ThreadChannel;
 import net.dv8tion.jda.api.entities.channel.unions.MessageChannelUnion;
 import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.message.GenericMessageEvent;
@@ -79,18 +80,17 @@ public class Bot extends ListenerAdapter {
     static boolean ready;
     static class Score implements Comparable<Score> {
         int value;
-        long time;
-        public Score(int v, long t) {
-            value = v; time = t;
-        }
-        
+        String id;
+        public Score(int v, String i) {
+            value = v; id = i;
+        } 
         @Override
         public int compareTo(Score o) {
             if (value == o.value) {
-                if (time > o.time) {
+                if (Long.parseLong(id.split("/")[1]) > Long.parseLong(o.id.split("/")[1])) {
                     return 1;
                 }
-                else if (time < o.time) {
+                else if (Long.parseLong(id.split("/")[1]) > Long.parseLong(o.id.split("/")[1])) {
                     return -1;
                 }
                 else {
@@ -100,6 +100,9 @@ public class Bot extends ListenerAdapter {
             else {
                 return o.value - value;
             }
+        }
+        public String toString() {
+            return value + " by " + id;
         }
     }
     
@@ -184,7 +187,7 @@ public class Bot extends ListenerAdapter {
         try {
             String[] lbFile = GitHubAPI.read("leaderboard.txt").split("\n");
             for (String entry : lbFile) {
-                leaderboard.put(Long.valueOf(entry.split(" ")[0]), new Score(Integer.parseInt(entry.split(" ")[1]), Long.parseLong(entry.split(" ")[2])));
+                leaderboard.put(Long.valueOf(entry.split(" ")[0]), new Score(Integer.parseInt(entry.split(" ")[1]), entry.split(" ")[2]));
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -293,7 +296,7 @@ public class Bot extends ListenerAdapter {
             for (long channel : leaderboard.keySet()) {
                 lbSave.append(channel).append(" ")
                 .append(leaderboard.get(channel).value).append(" ")
-                .append(leaderboard.get(channel).time).append("\n");
+                .append(leaderboard.get(channel).id).append("\n");
             }
             lbSave.deleteCharAt(lbSave.length() - 1);
             try {
@@ -396,18 +399,27 @@ public class Bot extends ListenerAdapter {
     }
 
     public void leaderboard(MessageReceivedEvent event) {
-        event.getChannel().sendMessage("Retrieving leaderboard data...").queue();
-        TreeMap<Score, TextChannel> global = new TreeMap<>();
-        TreeMap<Score, TextChannel> server = new TreeMap<>();
+        TreeMap<Score, String> global = new TreeMap<>();
+        TreeMap<Score, String> server = new TreeMap<>();
         for (long id : leaderboard.keySet()) {
             TextChannel channel = event.getJDA().getTextChannelById(id);
-            if (channel != null && channel.getGuild().getIdLong() == event.getGuild().getIdLong()) {
-                server.put(leaderboard.get(id), channel);
+            String name = "UNKNOWN CHANNEL";
+            if (channel == null) {
+                ThreadChannel thread = event.getJDA().getThreadChannelById(id);
+                if (thread != null) {
+                    name = thread.getGuild().getName() + "/" + thread.getParentChannel().getName() + "/" + thread.getName();
+                }
             }
-            global.put(leaderboard.get(id), channel);
+            else {
+                name = channel.getGuild().getName() + "/" + channel.getName();
+            }
+            if (channel != null && channel.getGuild().getIdLong() == event.getGuild().getIdLong()) {
+                server.put(leaderboard.get(id), name);
+            }
+            global.put(leaderboard.get(id), name);
         }
         StringBuilder lbDisplay = new StringBuilder();
-        lbDisplay.append("**Global Leaderboard**").append("\n");
+        lbDisplay.append("*Linked replays may no longer exist.*\n**Global Leaderboard**").append("\n");
         int index = 0;
         for (Score s : global.keySet()) {
             if (index == Math.min(global.size(), 10)) {
@@ -415,18 +427,13 @@ public class Bot extends ListenerAdapter {
             }
             lbDisplay.append(index + 1)
             .append(". ");
-            if (global.get(s) == null) {
-                lbDisplay.append("UNKNOWN CHANNEL");
-            }
-            else {
-                lbDisplay.append(global.get(s).getGuild().getName())
-                .append("/")
-                .append(global.get(s).getName());
-            }
-            lbDisplay.append(" | ")
+            lbDisplay.append(global.get(s))
+            .append(" | [")
             .append(s.value)
-            .append(" | ")
-            .append(new Date(s.time).toString())
+            .append("](http://tetris-bot-replays.web.app/?fileId=")
+            .append(s.id)
+            .append(") | ")
+            .append(new Date((long) Long.parseLong(s.id.split("/")[1])).toString())
             .append("\n");
         }
         lbDisplay.append("**").append(event.getGuild().getName()).append(" Leaderboard**").append("\n");
@@ -437,23 +444,18 @@ public class Bot extends ListenerAdapter {
             }
             lbDisplay.append(index + 1)
             .append(". ");
-            if (server.get(s) == null) {
-                lbDisplay.append("UNKNOWN CHANNEL");
-            }
-            else {
-                lbDisplay.append(server.get(s).getName());
-            }
-            lbDisplay.append(" | ")
+            lbDisplay.append(server.get(s))
+            .append(" | ")
             .append(s.value)
             .append(" | ")
-            .append(new Date(s.time).toString())
+            .append(new Date((long) Long.parseLong(s.id.split("/")[1])).toString())
             .append("\n");
         }
         if (leaderboard.containsKey(event.getChannel().getIdLong())) {
             lbDisplay.append("**Channel High Score: **")
             .append(leaderboard.get(event.getChannel().getIdLong()).value)
             .append(" | ")
-            .append(new Date(leaderboard.get(event.getChannel().getIdLong()).time).toString())
+            .append(new Date(Long.parseLong(leaderboard.get(event.getChannel().getIdLong()).id.split("/")[1])).toString())
             .append("\n");
         }
         event.getChannel().sendMessage(lbDisplay.toString()).queue();
@@ -637,9 +639,9 @@ public class Bot extends ListenerAdapter {
         }
         else {
             if (game.tetris.preview == 3 && game.consecutive < 2 && (!leaderboard.containsKey(event.getChannel().getIdLong()) || leaderboard.get(event.getChannel().getIdLong()).value < game.tetris.score)) {
-                leaderboard.put(event.getChannel().getIdLong(), new Score(game.tetris.score, System.currentTimeMillis()));
+                leaderboard.put(event.getChannel().getIdLong(), new Score(game.tetris.score, id));
             }
-            event.getChannel().sendMessage("Created replay with id \'" + id + "\'\nReplay can be viewed at https://tetris-bot-replays.web.app").queue();
+            event.getChannel().sendMessage("Created replay with id `" + id + "`\nClick [here](http://tetris-bot-replays.web.app/?fileId=" + id + ") to view your replay.").queue();
         }
     }
 

@@ -17,7 +17,7 @@ public class Game {
         "<:T_:1402070322907447409>",
         "<:Z_:1402069661952114771>"
     };
-    static final String[] TILES = {"⬜", "🟦", "🟧", "🟨", "🟩", "🟪", "🟥", "⬛", "🔳"};
+    static final String[] TILES = {"⏹️", "🟦", "🟧", "🟨", "🟩", "🟪", "🟥", "⬛", "🔳"};
 
     Tetris tetris;
     String owner;
@@ -145,24 +145,25 @@ public class Game {
             board[shape[i][1] + tetris.position[1]][shape[i][0] + tetris.position[0]] = TILES[tetris.queue.get(0).ordinal()];
         }
         StringBuilder boardDisp = new StringBuilder();
-        for (int y = 0; y < 19; y++) {
+        if (tetris.position[1] > 0) {
+            boardDisp.append("*(Top row omitted due to character constraints)*\n");
+        }
+        for (int y = tetris.position[1] > 0 ? 1 : 0; y < (tetris.position[1] > 0 ? 20 : 19); y++) {
             for (int x = 0; x < 10; x++) {
                 boardDisp.append(board[y][x]);
             }
             boardDisp.append("\n");
         }
-        gameDisp.setDescription(boardDisp.toString());
-        boardDisp = new StringBuilder();
-        for (int x = 0; x < 10; x++) {
-            boardDisp.append(board[19][x]);
+        if (tetris.position[1] == 0) {
+            boardDisp.append("*(Bottom row omitted due to character constraints)*\n");
         }
-        gameDisp.addField(boardDisp.toString(), "", false);
+        gameDisp.setDescription(boardDisp.toString());
         gameDisp.addField("HOLD", tetris.hold == Tetris.Piece.EMPTY ? "" : PIECE_IDS[tetris.hold.ordinal()], true);
         StringBuilder queueDisp = new StringBuilder();
+        gameDisp.addField("CURRENT", PIECE_IDS[tetris.queue.get(0).ordinal()], true);
         for (int i = 1; i <= tetris.preview; i++) {
             queueDisp.append(PIECE_IDS[tetris.queue.get(i).ordinal()]).append(" ");
         }
-        gameDisp.addField("\u200B", "\u200B", true);
         gameDisp.addField("NEXT", queueDisp.toString(), true);
         gameDisp.addField("SCORE", tetris.score + "", true);
         gameDisp.addField("LEVEL", Math.min(30, (tetris.lines / 10 + 1)) + "", true);
