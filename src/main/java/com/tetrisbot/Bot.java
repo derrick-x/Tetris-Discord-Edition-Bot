@@ -53,6 +53,10 @@ public class Bot extends ListenerAdapter {
     "\n- Games are now displayed on embeds. This will save on memory and make reaction-based gameplay much more streamlined." +
     "\n- Games and keybinds now save when bot goes restart. We really should have implemented this sooner..." +
     "\n- Our replay viewing website now allows pausing and frame stepping, as well as providing a much cleaner look." +
+    "\n- Some bug fixes and behind-the-scenes work." +
+    "\n## v1.1.1" +
+    "\n- Changed board display on embeds slightly for consistency." +
+    "\n- Leaderboard entries now link to their replays." +
     "\n- Some bug fixes and behind-the-scenes work.";
     static final String HELP =
     "**Tetris Bot commands:**" + "\n" +
