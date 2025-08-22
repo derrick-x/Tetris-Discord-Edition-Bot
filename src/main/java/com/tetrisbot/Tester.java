@@ -16,52 +16,29 @@ import java.nio.ByteBuffer;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Scanner;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import javax.swing.JFrame;
 
 /**
- * Temporary class to test the Tetris.java code logic.
+ * Temporary class to test stuff.
  */
 public class Tester extends Canvas {
     static Tetris tetris;
-    public static void main(String[] args) throws IOException {
-        System.out.println("-10".matches("^\\d+$"));
+    public static void main(String[] args) throws Exception {
+        Database.init();
+        Bot.Player player = new Bot.Player("");
+        Map<String, Object> map = player.toMap();
+        Database.write("Players", "player_name", map);
+        Map<String, Object> read = Database.read("Players", "player_name");
+        Bot.Player test = Bot.Player.fromMap(read);
         System.exit(0);
-        ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
-        buffer.putLong(System.currentTimeMillis());
-        System.out.println(Base64.getEncoder().encodeToString(buffer.array()));
-        System.exit(0);
-        File f1 = new File("test1.txt");
-        File f2 = new File("test2.txt");
-        String file1 = "test1.txt";
-        String file2 = "test2.txt";
-        final List<String> srcFiles = Arrays.asList(file1, file2);
-
-        final FileOutputStream fos = new FileOutputStream(Paths.get(file1).getParent().toAbsolutePath() + "/compressed.zip");
-        ZipOutputStream zipOut = new ZipOutputStream(fos);
-
-        for (String srcFile : srcFiles) {
-            File fileToZip = new File(srcFile);
-            FileInputStream fis = new FileInputStream(fileToZip);
-            ZipEntry zipEntry = new ZipEntry(fileToZip.getName());
-            zipOut.putNextEntry(zipEntry);
-
-            byte[] bytes = new byte[1024];
-            int length;
-            while((length = fis.read(bytes)) >= 0) {
-                zipOut.write(bytes, 0, length);
-            }
-            fis.close();
-        }
-
-        zipOut.close();
-        fos.close();
-        if (true) {
-            return;
-        }
+        new Scanner(System.in).nextLine();
         JFrame frame = new JFrame();
         frame.setSize(500, 520);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);

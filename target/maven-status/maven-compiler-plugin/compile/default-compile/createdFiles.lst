@@ -1,9 +1,11 @@
 com/tetrisbot/Tetris$Input.class
 com/tetrisbot/Bot$Score.class
 com/tetrisbot/Tester.class
+com/tetrisbot/Bot$Player.class
 com/tetrisbot/GitHubAPI.class
 com/tetrisbot/Tester$1.class
 com/tetrisbot/Game.class
 com/tetrisbot/Tetris.class
+com/tetrisbot/Database.class
 com/tetrisbot/Bot.class
 com/tetrisbot/Tetris$Piece.class

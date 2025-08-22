@@ -278,6 +278,7 @@ public class Tetris {
     int spinLevel; //Whether the last successful move was a rotation
     int lowest; //Lowest y position ever reached, used for instant lock condition
     int preview; //Number of pieces in the preview queue
+    int lastPlaced;
     boolean alive;
     //Add instance variables here as necessary
 
@@ -304,6 +305,7 @@ public class Tetris {
         message = "";
         spinLevel = 0;
         lowest = 1;
+        lastPlaced = -1;
         alive = true;
         preview = p;
     }
@@ -315,6 +317,7 @@ public class Tetris {
      * enum.
      */
     public boolean input(Input input) {
+        message = "";
         boolean placed = false;
         List<Input> validMoves = getValidMoves();
         switch (input) {
@@ -419,7 +422,6 @@ public class Tetris {
      */
     public void place() {
         //Move piece down until it collides
-        message = "";
         while (!collide(board, overflow, queue.get(0), position[0], position[1] + 1, rotation)) {
             position[1]++;
             spinLevel = 0;
@@ -569,6 +571,7 @@ public class Tetris {
         queue.poll();
         reset();
         canHold = true;
+        lastPlaced = inputs.size();
     }
 
     /**

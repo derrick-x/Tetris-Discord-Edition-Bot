@@ -3,6 +3,8 @@ package com.tetrisbot;
 import java.awt.Color;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.TreeMap;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Message;
@@ -19,15 +21,16 @@ public class Game {
     };
     static final String[] TILES = {"⏹️", "🟦", "🟧", "🟨", "🟩", "🟪", "🟥", "⬛", "🔳"};
 
-    Tetris tetris;
-    String owner;
-    long lastUserId;
-    Message gameMessage;
-    boolean react;
-    int consecutive;
-    int frames;
-    ArrayList<String> users;
-    StringBuilder replay;
+    Tetris tetris; //Tetris instance of game.
+    String owner; //User that started the game.
+    long lastUserId; //ID of last user that played an input.
+    Message gameMessage; //Message where game is displayed.
+    boolean react; //If reaction mode is enabled.
+    int consecutive; //0 = no consecutive rules, 1 = switch every piece, 2 = switch every player
+    int frames; //Number of frames in replay.
+    List<String> users; //List of users corresponding to each frame.
+    TreeMap<Integer, String> players; //List of players that played an input.
+    StringBuilder replay; //String detailing the replay.
 
     public Game(String o, int[] flags) {
         tetris = new Tetris((flags[2] + 3) % 6);
@@ -38,6 +41,7 @@ public class Game {
         consecutive = flags[1];
         frames = -1;
         users = new ArrayList<>();
+        players = new TreeMap<>();
         replay = new StringBuilder();
         replay.append(tetris.preview);
     }
@@ -168,6 +172,12 @@ public class Game {
         gameDisp.addField("SCORE", tetris.score + "", true);
         gameDisp.addField("LEVEL", Math.min(30, (tetris.lines / 10 + 1)) + "", true);
         gameDisp.addField("LINES", tetris.lines + "", true);
+        List<Tetris.Input> validMoves = tetris.getValidMoves();
+        StringBuilder validDisp = new StringBuilder();
+        for (Tetris.Input i : validMoves) {
+            validDisp.append(Tetris.INPUT_EMOJIS[i.ordinal()]);
+        }
+        gameDisp.addField("Valid moves", validDisp.toString(), false);
         if (tetris.message.length() > 0) {
             gameDisp.addField(tetris.message, "", false);
         }
