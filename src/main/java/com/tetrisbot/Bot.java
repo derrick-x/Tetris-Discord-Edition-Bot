@@ -51,7 +51,7 @@ public class Bot extends ListenerAdapter {
     static final String VERSION = 
     "# v1.2: User Profiles" +
     "\n- Player stats are now saved on your user profile! Use command `profile` to view your stats." +
-    "\n- Prefixes can now be customized for each server by members with the Manage Server permission." +
+    "\n- Prefixes can now be customized for each server by members with the Manage Server permission. Use command `prefix [prefix]` to configure. `!tetris ` will always work." +
     "\n- Game now displays valid moves at each frame." +
     "\n- Some bug fixes and behind the scenes work.";
     static final String HELP =
@@ -62,6 +62,8 @@ public class Bot extends ListenerAdapter {
     "* " + "`[input] -`: repeats the input until it is no longer valid. Only applies to LEFT, RIGHT, and SOFTDROP."+ "\n" +
     "* " + "`keybind {[input] [keybind]}`: sets the list of input-keybind pairs as your custom keybinds. For example, `keybind ha hd ho c ccw z` sets HARDDROP to hd, HOLD to c, and CCW to z. Custom keybinds are case sensitive." + "\n" +
     "* " + "`keybind`: displays your current keybinds set." + "\n" +
+    "* " + "`prefix [text]`: Reconfigures the server's prefix to the text specified. User must have Manage Messages permission to use command." + "\n" +
+    "* " + "`profile`: displays your current keybinds set." + "\n" +
     "* " + "`leaderboard`: displays the current leaderboard." + "\n" +
     "* " + "`version`: Gets the current version of the game." + "\n" +
     "**You may send a command by using the \"!tetris\" prefix or by replying to any bot message in the same channel.**";
