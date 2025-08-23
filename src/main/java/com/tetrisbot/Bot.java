@@ -47,7 +47,7 @@ import net.dv8tion.jda.api.utils.cache.CacheFlag;
 
 public class Bot extends ListenerAdapter {
     static final String DISCORD_TOKEN = System.getenv("DISCORD_TOKEN"); //If testing on your own, use your own bot token
-    static final long BOT_ID = 1387542197879963648L; //replace with your bot's ID
+    static final long BOT_ID = 1377027446783610890L; //replace with your bot's ID
     static final String VERSION = 
     "# v1.2: User Profiles" +
     "\n- Player stats are now saved on your user profile! Use command `profile` to view your stats." +
