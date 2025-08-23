@@ -23,6 +23,9 @@ public class Database {
      * @throws IOException
      */
     public static void init() throws IOException {
+        if (FIREBASE_CONFIG == null) {
+            return;
+        }
         InputStream serviceAccount = new ByteArrayInputStream(FIREBASE_CONFIG.getBytes());
         FirebaseOptions options = FirebaseOptions.builder()
             .setCredentials(GoogleCredentials.fromStream(serviceAccount))
@@ -39,6 +42,9 @@ public class Database {
      * @throws Exception
      */
     public static void write(String collection, String document, Map<String, Object> entry) throws Exception {
+        if (FIREBASE_CONFIG == null) {
+            return;
+        }
         db.collection(collection).document(document).set(entry).get();
     }
 
@@ -50,6 +56,9 @@ public class Database {
      * @throws Exception
      */
     public static Map<String, Object> read(String collection, String document) throws Exception {
+        if (FIREBASE_CONFIG == null) {
+            return new HashMap<>();
+        }
         return db.collection(collection).document(document).get().get().getData();
     }
     /**
@@ -60,6 +69,9 @@ public class Database {
      * @throws Exception
      */
     public static Map<String, Map<String, Object>> read(String collection) throws Exception {
+        if (FIREBASE_CONFIG == null) {
+            return new HashMap<>();
+        }
         Map<String, Map<String, Object>> documents = new HashMap<>();
         for (DocumentReference doc : db.collection(collection).listDocuments()) {
             documents.put(doc.getId(), doc.get().get().getData());

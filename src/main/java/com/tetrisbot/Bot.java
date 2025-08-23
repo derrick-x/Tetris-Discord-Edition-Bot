@@ -367,9 +367,6 @@ public class Bot extends ListenerAdapter {
             return;
         }
         //Run command
-        if (!players.containsKey(event.getAuthor().getName())) {
-            players.put(event.getAuthor().getName(), new Player(event.getAuthor().getId()));
-        }
         if (args[0].equals("start")) {
             start(event, ((args.length > 1 && args[1].matches("^\\d+$"))) ? Integer.parseInt(args[1]) : -1);
         }
@@ -604,9 +601,11 @@ public class Bot extends ListenerAdapter {
             lbDisplay.append(index + 1)
             .append(". ");
             lbDisplay.append(server.get(s))
-            .append(" | ")
+            .append(" | [")
             .append(s.value)
-            .append(" | ")
+            .append("](http://tetris-bot-replays.web.app/?fileId=")
+            .append(s.id)
+            .append(") | ")
             .append(new Date((long) Long.parseLong(s.id.split("/")[1])).toString())
             .append("\n");
         }
@@ -636,6 +635,9 @@ public class Bot extends ListenerAdapter {
     }
 
     public void profile(MessageReceivedEvent event) {
+        if (!players.containsKey(event.getAuthor().getName())) {
+            players.put(event.getAuthor().getName(), new Player(event.getAuthor().getId()));
+        }
         event.getChannel().sendMessageEmbeds(players.get(event.getAuthor().getName()).display(event.getAuthor().getName())).queue();
     }
 
@@ -674,7 +676,7 @@ public class Bot extends ListenerAdapter {
                 if (game.tetris.lines >= 300 || !game.tetris.alive) {
                     finishGame(event, game);
                 }
-                updatePlayers(event.getAuthor().getName(), event.getChannel().getId(), game, placed ? prevPlace : -2, game.tetris.score - prevScore);
+                updatePlayers(event.getAuthor(), event.getChannel().getId(), game, placed ? prevPlace : -2, game.tetris.score - prevScore);
             }
             else {
                 event.getChannel().sendMessage(event.getMember().getEffectiveName() + ", you already played the last move!").queue();
@@ -761,7 +763,7 @@ public class Bot extends ListenerAdapter {
                             if (game.tetris.lines >= 300 || !game.tetris.alive) {
                                 finishGame(event, game);
                             }
-                            updatePlayers(user.getName(), event.getChannel().getId(), game, placed ? prevPlace : -2, game.tetris.score - prevScore);
+                            updatePlayers(user, event.getChannel().getId(), game, placed ? prevPlace : -2, game.tetris.score - prevScore);
                         }
                         else {
                             event.getChannel().sendMessage(input + " is not a valid move!").queue(sentMessage -> {
@@ -788,10 +790,13 @@ public class Bot extends ListenerAdapter {
      * piece was placed.
      * @param scoreDiff Increase in score from input.
      */
-    public static void updatePlayers(String player, String channelId, Game game, int place, int scoreDiff) {
-        players.get(player).inputs++;
-        players.get(player).points += scoreDiff;
-        players.get(player).channels.add(channelId);
+    public static void updatePlayers(User user, String channelId, Game game, int place, int scoreDiff) {
+        if (!players.containsKey(user.getName())) {
+            players.put(user.getName(), new Player(user.getId()));
+        }
+        players.get(user.getName()).inputs++;
+        players.get(user.getName()).points += scoreDiff;
+        players.get(user.getName()).channels.add(channelId);
         if (place > -2) {
             double total = 0;
             Map<String, Integer> contributors = new HashMap<>();
@@ -805,7 +810,7 @@ public class Bot extends ListenerAdapter {
                 }
             }
             for (String p : contributors.keySet()) {
-                if (!p.equals(player)) {
+                if (!p.equals(user.getName())) {
                     players.get(p).assist += (long) (scoreDiff * contributors.get(p) / total);
                 }
             }
@@ -831,10 +836,10 @@ public class Bot extends ListenerAdapter {
                 if (game.tetris.message.contains("MINI")) {
                     clear -= 4;
                 }
-                players.get(player).clears[clear]++;
+                players.get(user.getName()).clears[clear]++;
             }
         }
-        game.players.put(game.frames - 1, player);
+        game.players.put(game.frames - 1, user.getName());
     }
 
     /**
